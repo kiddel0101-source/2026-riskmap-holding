@@ -51,9 +51,12 @@ Mỗi khi người dùng yêu cầu thêm/sửa tính năng, đi đúng 6 bướ
   tự chạy lệnh.
 - Nếu người dùng báo trùng port → tắt hẳn tiến trình cũ rồi chạy port khác.
 - **Sau mỗi lần cập nhật, kiểm tra tình trạng git** (`git status`), báo rõ file nào đã đổi.
-  Chỉ commit khi người dùng yêu cầu.
-  ⚠️ **Hiện thư mục này CHƯA phải git repo** — cần chạy `git init` một lần trước khi luật này
-  có tác dụng. Hỏi người dùng trước khi khởi tạo.
+  Chỉ commit/push khi người dùng yêu cầu.
+- Repo: <https://github.com/khanh-at-gex/app-risk-visual-riskmap-holding> (nhánh `main`).
+- ⚠️ **Trước mọi lần commit, bắt buộc kiểm tra `.env` không bị đưa vào** bằng lệnh
+  `git ls-files --cached | grep -iE "^\.env"` — lệnh này phải **không ra kết quả nào**.
+  File `.env` chứa client secret và mật khẩu tài khoản dịch vụ thật. Đã được `.gitignore`
+  và `.dockerignore` chặn — đừng bao giờ gỡ hai dòng đó.
 
 ### Cách giao tiếp
 
@@ -181,7 +184,7 @@ dùng thật.
 - Sheet `6_Risk_Appetite_Threshold` — đối chiếu mức rủi ro thực tế với khẩu vị rủi ro.
 - Sheet `7_RCM` — ma trận kiểm soát (cần xử lý header lồng nhau trước).
 - Trang Overview chi tiết cấp tập đoàn.
-- Chưa khởi tạo git (xem Bước 6).
+- Chưa chạy thử Dockerfile trên môi trường deploy thật (xem Mục 10).
 
 ---
 
@@ -194,3 +197,20 @@ Các cảnh báo sau được sinh **tự động** trong `src/insights.py`, kh�
 - `RISK-01` có điểm **sau** kiểm soát cao hơn **trước** kiểm soát (6 → 9).
 - Ba rủi ro cùng điểm residual = 6 nhưng gắn nhãn RAG khác nhau → ngưỡng RAG chưa thống nhất.
 - EMIC: 2/6 liên kết phụ thuộc một nguồn duy nhất, 3/6 khó thay thế.
+
+---
+
+## 10. Triển khai (Docker)
+
+`Dockerfile` build từ image nội bộ `gex-base-streamlit:latest`, cài thêm `git` (cần để pip
+lấy `gex-msgraph` từ GitHub) rồi chạy Streamlit ở cổng 8501.
+
+⚠️ **Hai điểm phải nhớ khi deploy:**
+
+1. Dockerfile dùng `COPY . .` → mọi file không nằm trong `.dockerignore` sẽ bị đóng gói vào
+   image. `.env` đã được chặn — **không được gỡ**. Thay vào đó, truyền biến môi trường
+   (`MS_DAS_U1_CLIENT_ID`, `MS_DAS_U1_CLIENT_SECRET`, `MS_DAS_U1_TENANT_ID`,
+   `MS_DAS_U1_USERNAME`, `MS_DAS_U1_PASSWORD`) lúc chạy container.
+2. Máy build phải vào được GitHub nội bộ để cài `gex-msgraph`; container lúc chạy phải vào
+   được SharePoint, nếu không app sẽ báo lỗi không tải được dữ liệu (app **không** có bản
+   sao dự phòng dưới đĩa theo đúng yêu cầu).
