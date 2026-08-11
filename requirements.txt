@@ -1,0 +1,12 @@
+# Cài đặt: pip install -r requirements.txt
+# Lưu ý: gex-msgraph là thư viện nội bộ, không có trên PyPI — pip cần quyền truy cập
+# https://github.com/khanh-at-gex/gex-msgraph.git tại thời điểm build (deploy server/CI
+# phải có network + credential git tới GitHub nội bộ).
+
+streamlit==1.61.1
+pandas==3.0.5
+openpyxl==3.1.5
+plotly==6.9.0
+networkx==3.6.1
+python-dotenv==1.2.2
+gex-msgraph @ git+https://github.com/khanh-at-gex/gex-msgraph.git
