@@ -116,19 +116,32 @@ def control_effectiveness_anomalies(risks: pd.DataFrame) -> list[Insight]:
     return out
 
 
-def supply_chain_alerts(sc: pd.DataFrame, company_id: str, risk_counts: pd.Series) -> list[Insight]:
+def supply_chain_alerts(rows: pd.DataFrame, company_id: str, risk_counts: pd.Series) -> list[Insight]:
+    """`rows` là các liên kết CỦA công ty đang xem và ĐÃ áp dụng bộ lọc trên giao diện,
+    để cảnh báo luôn khớp với những gì người dùng đang nhìn thấy trên sơ đồ."""
     out: list[Insight] = []
-    rows = sc[(sc["upstream_entity_id"] == company_id) | (sc["downstream_entity_id"] == company_id)]
     if rows.empty:
         return out
 
-    single = rows[rows["single_source_flag"].astype(str).str.startswith("Có")]
-    if not single.empty:
+    concentrated = rows[rows["single_source_flag"].astype(str).str.startswith("Có")]
+    # Tach 2 chieu: dau vao phu thuoc 1 nha cung cap khac han voi dau ra phu thuoc 1 khach hang
+    up_single = concentrated[concentrated["downstream_entity_id"] == company_id]
+    down_single = concentrated[concentrated["upstream_entity_id"] == company_id]
+
+    if not up_single.empty:
         out.append(
             Insight(
                 "warning",
-                f"**{len(single)}/{len(rows)} liên kết phụ thuộc một nguồn duy nhất**: "
-                f"{_fmt_list(single['input_output_type'])}.",
+                f"**{len(up_single)} đầu vào phụ thuộc một nhà cung cấp duy nhất**: "
+                f"{_fmt_list(up_single['input_output_type'])}.",
+            )
+        )
+    if not down_single.empty:
+        out.append(
+            Insight(
+                "warning",
+                f"**{len(down_single)} đầu ra tập trung vào một khách hàng**: "
+                f"{_fmt_list(down_single['input_output_type'])}.",
             )
         )
 

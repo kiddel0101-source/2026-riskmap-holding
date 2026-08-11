@@ -36,6 +36,26 @@ def hex_to_rgba(hex_color: str, alpha: float) -> str:
     return f"rgba({r},{g},{b},{alpha})"
 
 
+def nz(value, dash: str = "—") -> str:
+    """Doi gia tri rong/NaN thanh dau gach ngang khi hien thi.
+
+    Luu y: KHONG dung `row.get(col, "—")` cho DataFrame row — neu cot ton tai nhung
+    gia tri la NaN thi .get() van tra ve NaN (khong dung default) -> man hinh hien "nan".
+    Tuong tu, `if row.get(col):` luon True voi NaN vi float('nan') la truthy.
+    """
+    import pandas as pd
+
+    if value is None:
+        return dash
+    try:
+        if pd.isna(value):
+            return dash
+    except (TypeError, ValueError):
+        pass
+    text = str(value).strip()
+    return text if text and text != "-" else dash
+
+
 def wrap_text(text: str, width: int = 20, max_lines: int = 3) -> str:
     """Ngat dong theo tu de nhan vua trong o, cat bot neu qua dai."""
     words, lines, cur = str(text).split(), [], ""

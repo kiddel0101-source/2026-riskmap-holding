@@ -2,7 +2,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from src.config import ACCENT
-from src.theme import hex_to_rgba, plotly_template, risk_palette, wrap_text
+from src.theme import hex_to_rgba, nz, plotly_template, risk_palette, wrap_text
 
 HARD_SUBSTITUTE = ("Khó", "Không thể thay thế trong ngắn hạn")
 
@@ -96,7 +96,7 @@ def build_supply_chain_network(
             color, width, dash = _edge_style(level, palette)
             n_risk = int(risk_counts.get(r.get("sc_link_id"), 0))
 
-            lines = [wrap_text(r.get("input_output_type") or "—", width=36, max_lines=1)]
+            lines = [wrap_text(nz(r.get("input_output_type")), width=36, max_lines=1)]
             if n_risk:
                 lines.append(f"⚠ {n_risk} rủi ro")
             _add_box(fig, cx, y, box_w, h * 0.82, color, wrap_text(entity, 36, 1), lines)
@@ -115,14 +115,16 @@ def build_supply_chain_network(
 
             hov_x.append(cx)
             hov_y.append(y)
+            lead = r.get("lead_time_days")
+            lead_txt = f"{lead:.0f} ngày" if pd.notna(lead) else "—"
             hov_text.append(
-                f"<b>{r.get('sc_link_id', '')}</b> · {entity}<br>"
-                f"{r.get('input_output_type', '—')}<br>"
-                f"Loại đối tác: {r.get('upstream_entity_type', '—')}<br>"
-                f"Nguồn gốc: {r.get('geographic_origin', '—')} · Lead time: {r.get('lead_time_days', '—')} ngày<br>"
-                f"Hợp đồng: {r.get('contract_type', '—')}<br>"
-                f"Phụ thuộc một nguồn: {r.get('single_source_flag', '—')}<br>"
-                f"Khả năng thay thế: {r.get('substitutability', '—')}<br>"
+                f"<b>{nz(r.get('sc_link_id'))}</b> · {entity}<br>"
+                f"{nz(r.get('input_output_type'))}<br>"
+                f"Loại đối tác: {nz(r.get('upstream_entity_type'))}<br>"
+                f"Nguồn gốc: {nz(r.get('geographic_origin'))} · Lead time: {lead_txt}<br>"
+                f"Hợp đồng: {nz(r.get('contract_type'))}<br>"
+                f"Mức độ tập trung: {nz(r.get('single_source_flag'))}<br>"
+                f"Khả năng thay thế: {nz(r.get('substitutability'))}<br>"
                 f"Rủi ro gắn với liên kết: {n_risk}"
             )
 
@@ -215,8 +217,8 @@ def build_group_supply_map(sc: pd.DataFrame, companies: pd.DataFrame, shared: pd
         hov_y.append(up_y[e])
         hov_text.append(
             f"<b>{e}</b><br>Cung cấp cho: {', '.join(serves)}<br>"
-            f"Đầu vào: {' · '.join(sorted(set(sub_rows['input_output_type'])))}<br>"
-            f"Khả năng thay thế: {' · '.join(sorted(set(str(x) for x in sub_rows['substitutability'])))}"
+            f"Đầu vào: {' · '.join(sorted({nz(v) for v in sub_rows['input_output_type']}))}<br>"
+            f"Khả năng thay thế: {' · '.join(sorted({nz(v) for v in sub_rows['substitutability']}))}"
         )
 
     h_ct = min(0.26, 0.94 / max(1, len(center_ids)))

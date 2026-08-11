@@ -1,10 +1,12 @@
 import pandas as pd
 import streamlit as st
 
+from src.theme import nz
+
 
 def _label_map(companies: pd.DataFrame) -> dict:
     return {
-        str(r.company_id): f"{r.company_id} — {r.company_name}"
+        str(r.company_id): f"{r.company_id} — {nz(r.company_name, '')}".strip(" —")
         for r in companies.itertuples()
         if pd.notna(r.company_id)
     }

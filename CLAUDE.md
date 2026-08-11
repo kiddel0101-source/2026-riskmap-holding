@@ -45,18 +45,29 @@ Mỗi khi người dùng yêu cầu thêm/sửa tính năng, đi đúng 6 bướ
 - Kiểm tra cả giao diện **sáng và tối**.
 - Chỉ báo "xong" khi đã tự sửa hết lỗi mình tìm ra. Nếu còn lỗi chưa sửa được → nói thẳng.
 
-### Bước 6 — MỞ APP CHO NGƯỜI DÙNG + KIỂM TRA GIT
+### Bước 6 — MỞ APP CHO NGƯỜI DÙNG (rồi mới tới git, theo đúng thứ tự)
 
-- **Luôn khởi động app và đưa link** (ví dụ `http://localhost:8600`) — không bắt người dùng
-  tự chạy lệnh.
+#### 6a. Mở app và đưa link
+
+- **Luôn tự khởi động app và đưa link** (ví dụ `http://localhost:8600`) — không bắt người
+  dùng tự chạy lệnh.
 - Nếu người dùng báo trùng port → tắt hẳn tiến trình cũ rồi chạy port khác.
-- **Sau mỗi lần cập nhật, kiểm tra tình trạng git** (`git status`), báo rõ file nào đã đổi.
-  Chỉ commit/push khi người dùng yêu cầu.
-- Repo: <https://github.com/khanh-at-gex/app-risk-visual-riskmap-holding> (nhánh `main`).
-- ⚠️ **Trước mọi lần commit, bắt buộc kiểm tra `.env` không bị đưa vào** bằng lệnh
+
+#### 6b. Kiểm tra git và BÁO CÁO (chưa push)
+
+- Chạy `git status`, báo rõ file nào đã đổi.
+- ⚠️ **Bắt buộc kiểm tra `.env` không bị đưa vào** bằng lệnh
   `git ls-files --cached | grep -iE "^\.env"` — lệnh này phải **không ra kết quả nào**.
   File `.env` chứa client secret và mật khẩu tài khoản dịch vụ thật. Đã được `.gitignore`
   và `.dockerignore` chặn — đừng bao giờ gỡ hai dòng đó.
+
+#### 6c. CHỜ NGƯỜI DÙNG XÁC NHẬN rồi mới commit + push
+
+- 🚫 **KHÔNG được tự ý `git push`.** Người dùng phải xem app chạy thực tế, hài lòng rồi mới
+  cho lệnh (ví dụ: *"ok push đi"*).
+- Nếu người dùng thấy chưa ổn → quay lại Bước 4 sửa tiếp, chưa đụng tới git.
+- Chỉ khi được đồng ý mới `git commit` + `git push`, rồi báo lại kết quả.
+- Repo: <https://github.com/khanh-at-gex/app-risk-visual-riskmap-holding> (nhánh `main`).
 
 ### Cách giao tiếp
 
@@ -147,6 +158,9 @@ src/
 | Theme sáng/tối | Nhận biết bằng `st.context.theme.type`. Đã có sẵn `theme.risk_palette()` và `theme.plotly_template()`. Đừng đặt màu cứng chỉ hợp 1 theme. |
 | Không đặt `[theme]` trong `config.toml` | Nếu đặt sẽ khoá app ở 1 theme, mất khả năng tự đổi theo máy người dùng. |
 | Chữ tràn khỏi khung trong biểu đồ | Dùng `theme.wrap_text()` và hàm `_add_box()` trong `viz/supply_chain.py` (tự chia đều dòng theo chiều cao ô). |
+| **Ô trống hiện ra chữ `nan` trên màn hình** | Dữ liệu có rất nhiều ô trống. Hai cái bẫy đã mắc: (1) `row.get(col, "—")` **không** trả về `"—"` khi ô có giá trị `NaN` (vì cột vẫn tồn tại) → in ra `nan`; (2) `if row.get(col):` **luôn đúng** với `NaN` vì `float('nan')` là truthy → hiện "Phụ thuộc: nan". → Luôn dùng `theme.nz(value)` để hiển thị, và `pd.notna(...)` để kiểm tra có giá trị hay không. |
+| Bộ lọc phải áp dụng nhất quán | Nếu lọc dữ liệu cho biểu đồ thì **chỉ số KPI, cảnh báo và bảng chi tiết cũng phải lọc theo**, nếu không con số sẽ không khớp với hình người dùng đang nhìn. |
+| `single_source_flag` có 2 nghĩa | Vừa là "phụ thuộc 1 nhà cung cấp" (liên kết đầu vào) vừa là "tập trung 1 khách hàng" (liên kết đầu ra). Đừng gộp chung một nhãn — phải tách theo chiều `upstream/downstream` như trong `insights.supply_chain_alerts()`. |
 
 ---
 

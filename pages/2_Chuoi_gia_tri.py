@@ -1,10 +1,11 @@
+import pandas as pd
 import streamlit as st
 
 from src import insights
 from src.components.filters import company_selector
 from src.config import vi
 from src.data import loader, repository
-from src.theme import chart_config
+from src.theme import chart_config, nz
 from src.viz.value_chain import build_risk_by_function_bar, build_value_chain_map
 
 st.title("⛓️ Chuỗi giá trị")
@@ -46,7 +47,12 @@ if company_id is None:
 
 nodes = value_chain[value_chain["company_id"] == company_id]
 if nodes.empty:
-    st.info(f"Chưa có dữ liệu chuỗi giá trị cho **{company_id}**.")
+    có_dữ_liệu = ", ".join(sorted(available_ids)) or "chưa có công ty nào"
+    st.info(
+        f"Chưa có dữ liệu chuỗi giá trị cho **{company_id}**. "
+        f"Hiện chỉ các công ty sau đã khai báo chuỗi giá trị: **{có_dữ_liệu}** — "
+        "chọn lại ở ô *Công ty* phía trên."
+    )
     st.stop()
 
 covered = risks_exploded.merge(nodes[["vc_node_id"]], on="vc_node_id")["vc_node_id"].nunique()
@@ -88,20 +94,20 @@ with col_bar:
 with col_detail:
     st.subheader("Chi tiết hoạt động")
     rows = nodes[nodes["vc_category"].isin(categories)].reset_index(drop=True)
-    node_labels = {r.vc_node_id: f"{r.vc_node_id} — {r.vc_sub_function}" for r in rows.itertuples()}
+    node_labels = {r.vc_node_id: f"{r.vc_node_id} — {nz(r.vc_sub_function, '')}" for r in rows.itertuples()}
     selected_node = st.selectbox(
         "Chọn hoạt động", rows["vc_node_id"].tolist(),
         format_func=lambda n: node_labels.get(n, n), key="vc_selected_node",
     )
     node_row = rows[rows["vc_node_id"] == selected_node].iloc[0]
     with st.container(border=True):
-        st.markdown(f"**{selected_node} — {node_row.get('vc_sub_function', '')}**")
-        st.write(node_row.get("activity_description") or "—")
+        st.markdown(f"**{selected_node} — {nz(node_row.get('vc_sub_function'), '')}**")
+        st.write(nz(node_row.get("activity_description")))
         c1, c2, c3 = st.columns(3)
-        c1.metric("Chủ trì", node_row.get("process_owner") or "—")
-        c2.metric("Nhóm", node_row.get("vc_category") or "—")
+        c1.metric("Chủ trì", nz(node_row.get("process_owner")))
+        c2.metric("Nhóm", nz(node_row.get("vc_category")))
         c3.metric("Rủi ro liên kết", int(risk_counts.get(selected_node, 0)))
-        if node_row.get("dependency_note"):
+        if pd.notna(node_row.get("dependency_note")):
             st.warning(f"Phụ thuộc: {node_row['dependency_note']}")
 
         linked_risks = repository.risks_for_node(risks, selected_node)

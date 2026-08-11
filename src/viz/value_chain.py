@@ -1,7 +1,7 @@
 import pandas as pd
 import plotly.graph_objects as go
 
-from src.theme import hex_to_rgba, plotly_template, risk_palette, wrap_text
+from src.theme import hex_to_rgba, nz, plotly_template, risk_palette, wrap_text
 
 
 def _risk_color(count: int, palette: dict) -> str:
@@ -75,7 +75,7 @@ def build_value_chain_map(
                 fillcolor=hex_to_rgba(color, 0.14),
                 layer="below",
             )
-            label = wrap_text(r.get("vc_sub_function") or r["vc_node_id"], width=22, max_lines=2)
+            label = wrap_text(nz(r.get("vc_sub_function"), r["vc_node_id"]), width=22, max_lines=2)
             fig.add_annotation(
                 x=cx, y=cy + box_h * 0.06, xref="x", yref="y", text=label,
                 showarrow=False, font=dict(size=10.5, color=color), align="center",
@@ -91,10 +91,10 @@ def build_value_chain_map(
             hov_x.append(cx)
             hov_y.append(cy)
             hov_text.append(
-                f"<b>{r['vc_node_id']} — {r.get('vc_sub_function') or ''}</b><br>"
-                f"{r.get('vc_category')} · {fn}<br>"
-                f"{r.get('activity_description') or '—'}<br>"
-                f"Chủ trì: {r.get('process_owner') or '—'}<br>"
+                f"<b>{r['vc_node_id']} — {nz(r.get('vc_sub_function'), '')}</b><br>"
+                f"{nz(r.get('vc_category'))} · {fn}<br>"
+                f"{nz(r.get('activity_description'))}<br>"
+                f"Chủ trì: {nz(r.get('process_owner'))}<br>"
                 f"Rủi ro liên kết: {count}"
                 + (f"<br>⚠ {r['dependency_note']}" if pd.notna(r.get("dependency_note")) else "")
             )

@@ -87,25 +87,48 @@ with col_type:
         st.multiselect("Loại đối tác thượng nguồn", type_options, default=type_options, key="sc_entity_types")
     ) or set(type_options)
 
-rows = supply_chain[
+all_rows = supply_chain[
     (supply_chain["upstream_entity_id"] == company_id) | (supply_chain["downstream_entity_id"] == company_id)
 ]
 
-if rows.empty:
-    st.info(f"Chưa có dữ liệu chuỗi cung ứng cho **{company_id}**.")
+if all_rows.empty:
+    có_dữ_liệu = ", ".join(sorted(available_ids)) or "chưa có công ty nào"
+    st.info(
+        f"Chưa có dữ liệu chuỗi cung ứng cho **{company_id}**. "
+        f"Hiện chỉ các công ty sau đã khai báo chuỗi cung ứng: **{có_dữ_liệu}** — "
+        "chọn lại ở ô *Công ty* phía trên."
+    )
     st.stop()
 
-single_n = int(rows["single_source_flag"].astype(str).str.startswith("Có").sum())
+# Áp dụng bộ lọc loại đối tác cho CẢ chỉ số, cảnh báo và bảng — để mọi con số luôn khớp
+# với sơ đồ người dùng đang nhìn. Liên kết đầu ra (công ty -> khách hàng) không bị lọc
+# vì bộ lọc chỉ nói về loại đối tác THƯỢNG NGUỒN.
+rows = all_rows[
+    all_rows["upstream_entity_type"].isin(entity_types) | (all_rows["upstream_entity_id"] == company_id)
+]
+if rows.empty:
+    st.info("Không có liên kết nào khớp bộ lọc hiện tại. Hãy chọn thêm loại đối tác.")
+    st.stop()
+
+if len(rows) < len(all_rows):
+    st.caption(f"Đang lọc: hiển thị {len(rows)}/{len(all_rows)} liên kết của {company_id}.")
+
+is_input = rows["downstream_entity_id"] == company_id  # liên kết đầu vào của công ty
+is_concentrated = rows["single_source_flag"].astype(str).str.startswith("Có")
+up_single_n = int((is_input & is_concentrated).sum())
 hard_n = int(rows["substitutability"].isin(["Khó", "Không thể thay thế trong ngắn hạn"]).sum())
 risk_n = int(sum(int(risk_counts_sc.get(x, 0)) > 0 for x in rows["sc_link_id"]))
 
 k1, k2, k3, k4 = st.columns(4)
 k1.metric("Liên kết", len(rows))
-k2.metric("Phụ thuộc một nguồn", f"{single_n}/{len(rows)}", help=f"{single_n / len(rows):.0%} tổng số liên kết")
+k2.metric(
+    "Đầu vào phụ thuộc 1 NCC", f"{up_single_n}/{len(rows)}",
+    help="Chỉ tính liên kết đầu vào. Đầu ra tập trung vào một khách hàng được nêu riêng ở phần cảnh báo.",
+)
 k3.metric("Khó thay thế", f"{hard_n}/{len(rows)}", help=f"{hard_n / len(rows):.0%} tổng số liên kết")
 k4.metric("Đã gắn rủi ro", f"{risk_n}/{len(rows)}")
 
-alerts = insights.supply_chain_alerts(supply_chain, company_id, risk_counts_sc)
+alerts = insights.supply_chain_alerts(rows, company_id, risk_counts_sc)
 
 shared_here = shared[shared["upstream_entity_id"].isin(rows["upstream_entity_id"])] if not shared.empty else shared
 for _, r in shared_here.iterrows():
@@ -125,9 +148,7 @@ insights.render(alerts, st)
 fig = build_supply_chain_network(
     supply_chain, company_id, risk_counts=risk_counts_sc, entity_types=entity_types
 )
-if fig is None:
-    st.info(f"Chưa có liên kết nào khớp bộ lọc hiện tại.")
-else:
+if fig is not None:
     fig.update_layout(height=height)
     st.plotly_chart(fig, width="stretch", config=chart_config())
 
