@@ -1,0 +1,29 @@
+# QUAN TRỌNG: Dockerfile dùng `COPY . .` nên mọi thứ không loại trừ ở đây sẽ bị
+# đóng gói vào image. Tuyệt đối giữ .env trong danh sách này — file đó chứa
+# client secret và mật khẩu tài khoản dịch vụ SharePoint.
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Không cần trong image
+.git
+.gitignore
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Dữ liệu tải từ SharePoint (app luôn lấy trực tiếp, không dùng bản sao)
+*.xlsx
+*.xls
+*.csv
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
