@@ -4,8 +4,8 @@ import streamlit as st
 from src import insights
 from src.components.filters import company_multiselector
 from src.config import RAG_COLORS, vi
-from src.data import loader, repository
-from src.theme import chart_config
+from src.data import event_store, loader, repository
+from src.theme import chart_config, nz, risk_palette
 from src.viz.risk import build_risk_heatmap, build_risk_migration_chart
 
 st.title("🛑 Danh mục rủi ro")
@@ -22,6 +22,8 @@ except loader.WorkbookFetchError as exc:
 
 companies = repository.get_companies(workbook_bytes)
 risks = repository.get_risks(workbook_bytes)
+taxonomy = repository.get_risk_taxonomy(workbook_bytes)
+trigger_edges = repository.get_risk_trigger_edges(workbook_bytes)
 available_ids = repository.companies_in(risks, companies, ["company_id"])
 
 if risks.empty:
@@ -121,3 +123,64 @@ if not not_assessed.empty:
             vi(not_assessed[[c for c in table_cols if c != "residual_score"]]),
             width="stretch", hide_index=True,
         )
+
+confirmed = event_store.list_confirmed_risks()
+if confirmed:
+    st.divider()
+    with st.container(border=True):
+        st.markdown("### 🏷️ Rủi ro đã xác nhận từ Sự kiện rủi ro")
+        st.caption(
+            "Rủi ro đã có sẵn trong Risk Register, được đánh dấu là liên quan tới 1 sự kiện cụ "
+            "thể ở trang Sự kiện rủi ro — dữ liệu rủi ro vẫn lấy sống từ Excel, chỉ thêm nhãn liên kết."
+        )
+        rows = []
+        for c in confirmed:
+            match = risks[risks["risk_id"] == c["risk_id"]]
+            if match.empty:
+                desc, company, triggered = "(không còn thấy trong Risk Register)", "—", []
+            else:
+                r = match.iloc[0]
+                desc, company = nz(r.get("risk_event_l3")), nz(r.get("company_id"))
+                triggered = repository.risks_triggered_by(c["risk_id"], taxonomy, trigger_edges)
+            rows.append({
+                "Mã rủi ro": c["risk_id"],
+                "Mô tả": desc,
+                "Công ty": company,
+                "Sự kiện gốc": c["event_description"],
+                "Có thể kích hoạt": " · ".join(triggered) if triggered else "—",
+                "Ngày xác nhận": c["confirmed_at"].strftime("%d/%m/%Y %H:%M"),
+            })
+        st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
+
+drafts = event_store.list_draft_risks()
+if drafts:
+    st.divider()
+    with st.container(border=True):
+        st.markdown("### 📝 Rủi ro nháp chờ chính thức hoá")
+        st.caption(
+            "Đây là rủi ro nháp do hệ thống tạo khi xác nhận từ 1 sự kiện ở trang Sự kiện rủi ro "
+            "— **CHƯA có trong Risk Register chính thức**. Cán bộ cần tự thêm vào Excel nếu xác "
+            "nhận đây là rủi ro thật."
+        )
+        rows = []
+        for d in drafts:
+            triggered = (
+                repository.risks_triggered_by_category(d["trigger_category"], trigger_edges)
+                if d.get("trigger_category") else []
+            )
+            loai = nz(d.get("category_l1"), "—")
+            if d.get("category_l2"):
+                loai += f" · {d['category_l2']}"
+            rows.append({
+                "": "NHÁP",
+                "Mô tả": d["description"],
+                "Loại rủi ro": loai,
+                "Hoạt động nguồn": d["vc_node_id"],
+                "Công ty": d["company_id"],
+                "Có thể kích hoạt": " · ".join(triggered) if triggered else "—",
+                "Ngày tạo": d["created_at"].strftime("%d/%m/%Y %H:%M"),
+            })
+        draft_df = pd.DataFrame(rows)
+        amber = risk_palette()["low"]
+        styler = draft_df.style.map(lambda v: f"color:{amber};font-weight:700", subset=[""])
+        st.dataframe(styler, width="stretch", hide_index=True)

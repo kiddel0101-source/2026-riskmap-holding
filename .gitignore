@@ -20,6 +20,9 @@ env/
 # Streamlit
 .streamlit/secrets.toml
 
+# Lich su su kien rui ro - luu tam bang SQLite cuc bo (xem CLAUDE.md Muc 11)
+risk_events.db
+
 # Data files (downloaded from SharePoint, not committed)
 *.xlsx
 *.xls

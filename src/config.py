@@ -17,6 +17,10 @@ SHEET_HEADER_ROW = {
     "4_Risk_Register": 3,
     "5_KRI_Library": 3,
     "6_Risk_Appetite_Threshold": 2,
+    # Danh muc rui ro toan Tap doan GELEX + quan he "nhom rui ro nay co the kich hoat nhom
+    # khac" (xem CLAUDE.md Muc 11) - header nam ngay dong dau tien, khac cac sheet tren.
+    "0. Danh mục rủi ro": 0,
+    "8_Risk_node": 0,
 }
 
 RAG_COLORS = {

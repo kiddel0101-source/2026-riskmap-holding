@@ -113,14 +113,18 @@ pages/
   1_Chuoi_cung_ung.py       2 chế độ xem: Theo công ty / Toàn hệ thống
   2_Chuoi_gia_tri.py        Bản đồ hoạt động theo khối chức năng
   3_Danh_muc_rui_ro.py      Bảng rủi ro + heatmap + risk migration
+  4_Su_kien_rui_ro.py       Nhập sự kiện, dò từ khóa, gắn với dữ liệu hiện có, lưu lịch sử
 src/
   config.py                 Link SharePoint, vị trí dòng header từng sheet, màu RAG,
                             COLUMN_LABELS + hàm vi() đổi tên cột sang tiếng Việt
   theme.py                  Nhận biết theme sáng/tối, bảng màu, ngắt dòng chữ trong ô
   insights.py               Tự phát hiện điểm bất thường để cảnh báo trên giao diện
+  insights_event.py         Dò từ khóa (không AI) cho trang Sự kiện rủi ro
   data/loader.py            Tải file từ SharePoint vào bộ nhớ (có cache)
   data/repository.py        Đọc từng sheet thành DataFrame, các phép nối dữ liệu
+  data/event_store.py       Lưu/đọc lịch sử sự kiện rủi ro qua SQLAlchemy (xem Mục 11)
   components/filters.py     Bộ chọn công ty dùng chung giữa các trang
+  components/risk_dialog.py Hộp thoại hồ sơ rủi ro đầy đủ khi bấm vào 1 ô trên bản đồ
   viz/supply_chain.py       Sơ đồ chuỗi cung ứng (theo công ty + toàn hệ thống)
   viz/value_chain.py        Bản đồ chuỗi giá trị + biểu đồ rủi ro theo khối chức năng
   viz/risk.py               Heatmap Likelihood × Impact + risk migration
@@ -228,3 +232,65 @@ lấy `gex-msgraph` từ GitHub) rồi chạy Streamlit ở cổng 8501.
 2. Máy build phải vào được GitHub nội bộ để cài `gex-msgraph`; container lúc chạy phải vào
    được SharePoint, nếu không app sẽ báo lỗi không tải được dữ liệu (app **không** có bản
    sao dự phòng dưới đĩa theo đúng yêu cầu).
+
+---
+
+## 11. Trang "Sự kiện rủi ro" — lưu trữ tạm thời, cần IT xác nhận
+
+Trang `4_Su_kien_rui_ro.py` là chỗ DUY NHẤT trong app có **ghi dữ liệu xuống đĩa/DB**
+(`src/data/event_store.py`) — khác với mọi trang còn lại vốn chỉ đọc Excel từ SharePoint.
+Nguyên tắc "không lưu file" ở Mục 6 nói về *bản sao workbook nguồn*, không áp dụng ở đây vì
+lịch sử sự kiện là dữ liệu do chính app tạo ra, không phải cache của nguồn.
+
+- **Hiện trạng:** chưa xác nhận công ty có Postgres dùng chung cho app nội bộ hay không (image
+  `gex-base-streamlit` đã có sẵn `sqlalchemy` + `psycopg2` — dấu hiệu có thể đã có). Vì vậy tạm
+  dùng SQLite cục bộ (`risk_events.db`, đã chặn trong `.gitignore`) làm mặc định.
+- ⚠️ **Rủi ro:** nếu server chạy Docker không gắn volume lưu trữ riêng cho `risk_events.db`,
+  lịch sử sẽ **mất mỗi lần deploy lại container**. Trang có hiện cảnh báo này ngay trên giao
+  diện (`event_store.is_using_default_storage()`).
+- **Cách nâng cấp lên Postgres sau này:** chỉ cần đặt biến môi trường `RISK_EVENTS_DB_URL`
+  (dạng `postgresql+psycopg2://user:pass@host/db`) lúc chạy container — không cần sửa code,
+  `src/data/event_store.py` đọc thẳng từ biến này.
+- Cơ chế dò từ khóa (`src/insights_event.py`) là **rule-based, không dùng AI** (đã chốt với
+  người dùng) — dò 2 tầng: khớp chính xác (giữ dấu) trước, chỉ khi 1 từ khóa không ra kết quả
+  chính xác nào mới thử lại kiểu bỏ dấu (gắn `is_exact=False`, hiện cảnh báo trên giao diện).
+  ⚠️ **Đừng bỏ hết dấu tiếng Việt rồi so khớp trực tiếp** — từng gây lỗi thật: "đồng" (kim loại)
+  và "động" (hoạt động/biến động) đều rút gọn về "dong" nên khớp lẫn lộn hàng loạt, xem lịch sử
+  sửa lỗi trong code. Giới hạn đã biết: từ khóa vĩ mô không có mặt sẵn trong dữ liệu (vd "giá
+  dầu" với công ty không liên quan dầu khí) sẽ ra "không tìm thấy" — đây là đánh đổi đã được
+  người dùng chấp nhận để giữ minh bạch, không phải lỗi.
+
+### 11.1. Tích chọn & xác nhận đưa vào "Danh mục rủi ro"
+
+Trên trang Sự kiện rủi ro, mỗi rủi ro/hoạt động khớp có thêm ô tích để **xác nhận liên quan đến
+sự kiện** — dữ liệu này **chỉ ghi trong DB riêng của app** (2 bảng mới trong
+`src/data/event_store.py`), **không** ghi/upload gì vào file Excel Risk Register thật:
+
+- `event_risk_confirmations` — chỉ đánh dấu 1 `risk_id` **đã có** trong Risk Register là liên
+  quan đến 1 sự kiện; không copy dữ liệu, luôn join sống với `risks` df khi hiển thị.
+- `event_draft_risks` — rủi ro **NHÁP** tạo từ 1 hoạt động Chuỗi giá trị chưa từng có rủi ro
+  (form nhỏ: mô tả + loại rủi ro). Hiện trên trang Danh mục rủi ro với nhãn **NHÁP** màu cam, có
+  ghi chú rõ đây chưa phải rủi ro chính thức, cán bộ phải tự thêm vào Excel nếu xác nhận là thật.
+- MVP chưa có chức năng "bỏ xác nhận"/xoá — tích nhầm thì tạm thời chưa tự sửa được trên UI.
+
+### 11.2. "Rủi ro có thể kích hoạt" — 2 sheet MỚI (`0. Danh mục rủi ro`, `8_Risk_node`)
+
+Đã xác minh trực tiếp trên workbook thật (không suy đoán):
+
+- **`0. Danh mục rủi ro`** (146 dòng, header dòng đầu tiên = 0) — danh mục rủi ro **toàn Tập
+  đoàn GELEX**, RỘNG HƠN `4_Risk_Register` app đang dùng cho CADIVI/EMIC, nhưng **dùng chung
+  không gian mã `risk_id`** (đã kiểm tra RR.0056/58/63/89 khớp cả 2 sheet). Cột cần dùng:
+  `risk_id`, `risk_category_l2` (mã nhóm dạng số, vd "4.3. Mua hàng/dịch vụ").
+- **`8_Risk_node`** (220 dòng, header dòng đầu tiên = 0) — quan hệ "nhóm rủi ro này có thể kích
+  hoạt nhóm khác": cột `Source Node`, `Target Node` (đã chốt với người dùng: **Source → kích
+  hoạt → Target**), cộng 2 cột màu + 1 cột `a` — **`a` không có ý nghĩa gì, không đọc/không hiển
+  thị** (đã hỏi trực tiếp người dùng). Nhãn Source/Target khớp đúng 73/81 với `risk_category_l2`
+  của `0. Danh mục rủi ro`.
+- Cách nối: `risk_id` → tra `risk_category_l2` trong `0. Danh mục rủi ro` → tra `8_Risk_node`
+  theo `Source Node` == giá trị đó → lấy danh sách `Target Node` (chỉ hiện TÊN nhóm, không đối
+  chiếu ngược vào Risk Register hay lọc theo công ty — đã chốt với người dùng "chỉ nêu tên rủi ro
+  rà soát được từ sheet 8_Risk_node"). Không tra được nhóm, hoặc nhóm không có quan hệ nào → im
+  lặng bỏ qua, không hiện khung rỗng.
+- Hàm dùng: `repository.get_risk_taxonomy()`, `get_risk_trigger_edges()`, `risks_triggered_by()`
+  (theo risk_id có sẵn), `risks_triggered_by_category()` (theo 1 mã nhóm người dùng tự chọn —
+  dùng cho rủi ro nháp, vì rủi ro nháp chưa có risk_id để tra ngược).

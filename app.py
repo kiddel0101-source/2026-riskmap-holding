@@ -14,6 +14,7 @@ pages = [
     st.Page("pages/1_Chuoi_cung_ung.py", title="Chuỗi cung ứng", icon="🔗"),
     st.Page("pages/2_Chuoi_gia_tri.py", title="Chuỗi giá trị", icon="⛓️"),
     st.Page("pages/3_Danh_muc_rui_ro.py", title="Danh mục rủi ro", icon="🛑"),
+    st.Page("pages/4_Su_kien_rui_ro.py", title="Sự kiện rủi ro", icon="🌐"),
 ]
 pg = st.navigation(pages)
 
