@@ -3,9 +3,10 @@ import streamlit as st
 
 from src import insights
 from src.components.filters import company_selector
+from src.components.risk_dialog import show_risk_profile
 from src.config import vi
 from src.data import loader, repository
-from src.theme import chart_config
+from src.theme import chart_config, nz
 from src.viz.supply_chain import build_group_supply_map, build_supply_chain_network
 
 st.title("🔗 Chuỗi cung ứng")
@@ -150,7 +151,26 @@ fig = build_supply_chain_network(
 )
 if fig is not None:
     fig.update_layout(height=height)
-    st.plotly_chart(fig, width="stretch", config=chart_config())
+    event = st.plotly_chart(
+        fig, width="stretch", config=chart_config(),
+        key="sc_map", on_select="rerun", selection_mode="points",
+    )
+    st.caption("💡 Bấm vào một ô để xem đầy đủ hồ sơ rủi ro đang gắn với liên kết đó.")
+
+    clicked_points = (event or {}).get("selection", {}).get("points", [])
+    if clicked_points:
+        clicked_link = clicked_points[0].get("customdata")
+        if clicked_link and clicked_link != st.session_state.get("_sc_dialog_ack"):
+            st.session_state["_sc_dialog_ack"] = clicked_link
+            link_row = all_rows[all_rows["sc_link_id"] == clicked_link]
+            if not link_row.empty:
+                row = link_row.iloc[0]
+                entity = row["upstream_entity_id"] if row["downstream_entity_id"] == company_id else row["downstream_entity_id"]
+                show_risk_profile(
+                    repository.risks_for_sc_link(risks, clicked_link),
+                    f"{clicked_link} — {entity}",
+                    nz(row.get("input_output_type")),
+                )
 
 with st.expander(f"Bảng chi tiết {len(rows)} liên kết của {company_id}"):
     st.dataframe(vi(rows), width="stretch", hide_index=True)

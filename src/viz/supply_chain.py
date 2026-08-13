@@ -82,7 +82,7 @@ def build_supply_chain_network(
 
     fig = go.Figure()
     box_w = 0.30
-    hov_x, hov_y, hov_text = [], [], []
+    hov_x, hov_y, hov_text, hov_ids = [], [], [], []
 
     def draw_side(side_rows: pd.DataFrame, cx: float, is_upstream: bool) -> None:
         n = len(side_rows)
@@ -115,6 +115,7 @@ def build_supply_chain_network(
 
             hov_x.append(cx)
             hov_y.append(y)
+            hov_ids.append(r.get("sc_link_id"))
             lead = r.get("lead_time_days")
             lead_txt = f"{lead:.0f} ngày" if pd.notna(lead) else "—"
             hov_text.append(
@@ -142,7 +143,8 @@ def build_supply_chain_network(
 
     fig.add_trace(
         go.Scatter(
-            x=hov_x, y=hov_y, mode="markers", marker=dict(size=1, opacity=0),
+            x=hov_x, y=hov_y, mode="markers", marker=dict(size=42, opacity=0),
+            customdata=hov_ids,
             hovertext=hov_text, hoverinfo="text", showlegend=False,
         )
     )
@@ -152,6 +154,7 @@ def build_supply_chain_network(
         yaxis=dict(visible=False, range=[-0.06, 1.12]),
         margin=dict(l=6, r=6, t=6, b=6),
         hoverlabel=dict(align="left"),
+        clickmode="event+select",
     )
     return fig
 

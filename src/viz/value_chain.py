@@ -45,7 +45,7 @@ def build_value_chain_map(
     box_w, box_h = col_w * 0.90, row_h * 0.74
 
     fig = go.Figure()
-    hov_x, hov_y, hov_text = [], [], []
+    hov_x, hov_y, hov_text, hov_ids = [], [], [], []
 
     for ci, fn in enumerate(functions):
         cx = (ci + 0.5) * col_w
@@ -90,6 +90,7 @@ def build_value_chain_map(
 
             hov_x.append(cx)
             hov_y.append(cy)
+            hov_ids.append(r["vc_node_id"])
             hov_text.append(
                 f"<b>{r['vc_node_id']} — {nz(r.get('vc_sub_function'), '')}</b><br>"
                 f"{nz(r.get('vc_category'))} · {fn}<br>"
@@ -102,7 +103,8 @@ def build_value_chain_map(
     fig.add_trace(
         go.Scatter(
             x=hov_x, y=hov_y, mode="markers",
-            marker=dict(size=1, opacity=0),
+            marker=dict(size=42, opacity=0),
+            customdata=hov_ids,
             hovertext=hov_text, hoverinfo="text", showlegend=False,
         )
     )
@@ -112,6 +114,7 @@ def build_value_chain_map(
         yaxis=dict(visible=False, range=[-0.04, 1.09]),
         margin=dict(l=6, r=6, t=6, b=6),
         hoverlabel=dict(align="left"),
+        clickmode="event+select",
     )
     return fig
 

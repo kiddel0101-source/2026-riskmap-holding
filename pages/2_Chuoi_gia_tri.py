@@ -3,6 +3,7 @@ import streamlit as st
 
 from src import insights
 from src.components.filters import company_selector
+from src.components.risk_dialog import show_risk_profile
 from src.config import vi
 from src.data import loader, repository
 from src.theme import chart_config, nz
@@ -71,7 +72,25 @@ if fig is None:
     st.info("Không có hoạt động nào khớp bộ lọc hiện tại.")
 else:
     fig.update_layout(height=height)
-    st.plotly_chart(fig, width="stretch", config=chart_config())
+    event = st.plotly_chart(
+        fig, width="stretch", config=chart_config(),
+        key="vc_map", on_select="rerun", selection_mode="points",
+    )
+    st.caption("💡 Bấm vào một ô để xem đầy đủ hồ sơ rủi ro đang gắn với hoạt động đó.")
+
+    clicked_points = (event or {}).get("selection", {}).get("points", [])
+    if clicked_points:
+        clicked_node = clicked_points[0].get("customdata")
+        if clicked_node and clicked_node != st.session_state.get("_vc_dialog_ack"):
+            st.session_state["_vc_dialog_ack"] = clicked_node
+            node_row = nodes[nodes["vc_node_id"] == clicked_node]
+            if not node_row.empty:
+                row = node_row.iloc[0]
+                show_risk_profile(
+                    repository.risks_for_node(risks, clicked_node),
+                    f"{clicked_node} — {nz(row.get('vc_sub_function'), '')}",
+                    f"{nz(row.get('vc_category'))} · {nz(row.get('vc_function'))}",
+                )
 
 st.info(
     "ℹ️ Dữ liệu nguồn không có cột thể hiện hoạt động nào nối tiếp hoạt động nào, "
