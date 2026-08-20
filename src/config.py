@@ -21,6 +21,11 @@ SHEET_HEADER_ROW = {
     # khac" (xem CLAUDE.md Muc 11) - header nam ngay dong dau tien, khac cac sheet tren.
     "0. Danh mục rủi ro": 0,
     "8_Risk_node": 0,
+    # Mo hinh Chuoi gia tri Porter 9 khoi dung chung toan Tap doan (thay the
+    # 2_Value_Chain_Master CHI cho trang Chuoi gia tri) + quan he rui ro-kich-hoat-rui ro
+    # chi tiet hon 8_Risk_node (xem CLAUDE.md Muc 11.2/11.3). Header dong dau tien.
+    "Sheet1": 0,
+    "Risk_Linkages": 0,
 }
 
 RAG_COLORS = {

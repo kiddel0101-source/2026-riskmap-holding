@@ -61,9 +61,10 @@ event_draft_risks = Table(
     Column("description", Text, nullable=False),
     Column("category_l1", String, nullable=True),
     Column("category_l2", String, nullable=True),
-    # Ma nhom rui ro Tap doan (vd "4.3. Mua hang/dich vu") nguoi dung tu chon, dung de tra
-    # "co the kich hoat" qua repository.risks_triggered_by_category - khac voi category_l1/l2
-    # o tren (hop phan loai rieng, don gian cua app).
+    # 1 vc2_id (ma hoat dong trong Sheet1, vd "PR-003") nguoi dung tu chon, dung de tra "co
+    # the kich hoat" qua repository.risks_triggered_by_vc2 - khac voi category_l1/l2 o tren
+    # (hop phan loai rieng, don gian cua app). Truoc day (Phan 2) cot nay luu 1 ma nhom rui
+    # ro dang risk_category_l2 - da doi y nghia sang vc2_id o Phan 3, khong doi ten cot/schema.
     Column("trigger_category", String, nullable=True),
     Column("created_at", DateTime, nullable=False),
 )

@@ -23,8 +23,19 @@ except loader.WorkbookFetchError as exc:
 companies = repository.get_companies(workbook_bytes)
 risks = repository.get_risks(workbook_bytes)
 taxonomy = repository.get_risk_taxonomy(workbook_bytes)
+vc2 = repository.get_value_chain_v2(workbook_bytes)
 trigger_edges = repository.get_risk_trigger_edges(workbook_bytes)
 available_ids = repository.companies_in(risks, companies, ["company_id"])
+
+
+def _trigger_summary(triggered: list[dict]) -> str:
+    if not triggered:
+        return "—"
+    parts = []
+    for t in triggered:
+        extra = f" ({t['impact_level']})" if t.get("impact_level") else ""
+        parts.append(f"{nz(t.get('target_risk_name'))}{extra}")
+    return " · ".join(parts)
 
 if risks.empty:
     st.info("Chưa có dữ liệu rủi ro.")
@@ -141,13 +152,13 @@ if confirmed:
             else:
                 r = match.iloc[0]
                 desc, company = nz(r.get("risk_event_l3")), nz(r.get("company_id"))
-                triggered = repository.risks_triggered_by(c["risk_id"], taxonomy, trigger_edges)
+                triggered = repository.risks_triggered_by(c["risk_id"], taxonomy, vc2, trigger_edges)
             rows.append({
                 "Mã rủi ro": c["risk_id"],
                 "Mô tả": desc,
                 "Công ty": company,
                 "Sự kiện gốc": c["event_description"],
-                "Có thể kích hoạt": " · ".join(triggered) if triggered else "—",
+                "Có thể kích hoạt": _trigger_summary(triggered),
                 "Ngày xác nhận": c["confirmed_at"].strftime("%d/%m/%Y %H:%M"),
             })
         st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
@@ -165,7 +176,7 @@ if drafts:
         rows = []
         for d in drafts:
             triggered = (
-                repository.risks_triggered_by_category(d["trigger_category"], trigger_edges)
+                repository.risks_triggered_by_vc2(d["trigger_category"], vc2, trigger_edges)
                 if d.get("trigger_category") else []
             )
             loai = nz(d.get("category_l1"), "—")
@@ -177,7 +188,7 @@ if drafts:
                 "Loại rủi ro": loai,
                 "Hoạt động nguồn": d["vc_node_id"],
                 "Công ty": d["company_id"],
-                "Có thể kích hoạt": " · ".join(triggered) if triggered else "—",
+                "Có thể kích hoạt": _trigger_summary(triggered),
                 "Ngày tạo": d["created_at"].strftime("%d/%m/%Y %H:%M"),
             })
         draft_df = pd.DataFrame(rows)

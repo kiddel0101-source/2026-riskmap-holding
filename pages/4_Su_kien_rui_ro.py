@@ -3,7 +3,7 @@ import streamlit as st
 
 from src import insights_event
 from src.data import event_store, loader, repository
-from src.theme import risk_palette
+from src.theme import nz, risk_palette
 
 st.title("🌐 Sự kiện rủi ro")
 st.caption(
@@ -31,11 +31,36 @@ value_chain = repository.get_value_chain(workbook_bytes)
 supply_chain = repository.get_supply_chain(workbook_bytes)
 risks = repository.get_risks(workbook_bytes)
 taxonomy = repository.get_risk_taxonomy(workbook_bytes)
+vc2 = repository.get_value_chain_v2(workbook_bytes)
 trigger_edges = repository.get_risk_trigger_edges(workbook_bytes)
 member_company_ids = set(companies["company_id"].dropna().astype(str))
 
 _CATEGORY_L1_OPTIONS = sorted(risks["risk_category_l1"].dropna().unique().tolist())
-_TRIGGER_CATEGORY_OPTIONS = ["— Không chọn —"] + sorted(taxonomy["risk_category_l2"].unique().tolist())
+
+# Danh sach hoat dong Chuoi gia tri (Sheet1) de chon lam "hoat dong lien quan" khi tao rui
+# ro nhap - dung de tra risks_triggered_by_vc2 (thay the danh muc risk_category_l2 cu).
+_vc2_options_df = vc2.drop_duplicates(subset=["vc2_id"]).sort_values(["vc1_name", "vc2_name"])
+_TRIGGER_ACTIVITY_OPTIONS = ["— Không chọn —"] + _vc2_options_df["vc2_id"].tolist()
+_TRIGGER_ACTIVITY_LABELS = {
+    row.vc2_id: f"{row.vc1_name} — {row.vc2_name} ({row.vc2_id})" for row in _vc2_options_df.itertuples()
+}
+
+
+def _render_trigger_list(triggered: list[dict]) -> None:
+    """Hien danh sach rui ro co the bi kich hoat (tu Risk_Linkages) - dung chung cho ca the
+    rui ro va preview trong form rui ro nhap. Rong -> khong hien gi (im lang bo qua)."""
+    if not triggered:
+        return
+    parts = []
+    for t in triggered:
+        extra = f" (mức ảnh hưởng: {t['impact_level']})" if t.get("impact_level") else ""
+        parts.append(f"<b>{nz(t.get('target_risk_name'))}</b>{extra}")
+    st.markdown(
+        f"<div style='font-size:0.85rem;background:{risk_palette()['low']}22;"
+        f"border-radius:6px;padding:6px 10px;margin-top:4px'>"
+        f"🔗 <b>Có thể kích hoạt:</b> {' · '.join(parts)}</div>",
+        unsafe_allow_html=True,
+    )
 
 def _gkey(g: dict) -> str:
     """Khoa duy nhat cho 1 nhom (vd RR.0056 xuat hien o CA CADIVI lan EMIC la 2 nhom khac
@@ -78,14 +103,8 @@ def _render_risk_group(g: dict, key_prefix: str) -> str:
                 why += " · ⚠️ khớp gần đúng (không phân biệt dấu) — có thể khác nghĩa, hãy đọc kỹ trích đoạn"
             st.caption(why)
 
-        triggered = repository.risks_triggered_by(g["ref_id"], taxonomy, trigger_edges)
-        if triggered:
-            st.markdown(
-                f"<div style='font-size:0.85rem;background:{risk_palette()['low']}22;"
-                f"border-radius:6px;padding:6px 10px;margin-top:4px'>"
-                f"🔗 <b>Có thể kích hoạt:</b> {' · '.join(triggered)}</div>",
-                unsafe_allow_html=True,
-            )
+        triggered = repository.risks_triggered_by(g["ref_id"], taxonomy, vc2, trigger_edges)
+        _render_trigger_list(triggered)
 
         ck_key = f"confirm_risk_{key_prefix}_{_gkey(g)}"
         st.checkbox(
@@ -131,20 +150,15 @@ def _render_vc_group(g: dict, key_prefix: str, description: str) -> dict:
                 with fc2:
                     st.text_input("Loại rủi ro cấp 2 (tuỳ chọn)", key=keys["cat2"])
                 st.selectbox(
-                    "Nhóm rủi ro liên quan (theo danh mục Tập đoàn, tuỳ chọn — để tra rủi ro có thể kích hoạt)",
-                    _TRIGGER_CATEGORY_OPTIONS,
+                    "Hoạt động Chuỗi giá trị liên quan (theo Sheet1, tuỳ chọn — để tra rủi ro có thể kích hoạt)",
+                    _TRIGGER_ACTIVITY_OPTIONS,
+                    format_func=lambda v: _TRIGGER_ACTIVITY_LABELS.get(v, v),
                     key=keys["trigger"],
                 )
                 chosen_trigger = st.session_state.get(keys["trigger"])
                 if chosen_trigger and chosen_trigger != "— Không chọn —":
-                    preview = repository.risks_triggered_by_category(chosen_trigger, trigger_edges)
-                    if preview:
-                        st.markdown(
-                            f"<div style='font-size:0.85rem;background:{risk_palette()['low']}22;"
-                            f"border-radius:6px;padding:6px 10px'>🔗 <b>Có thể kích hoạt:</b> "
-                            f"{' · '.join(preview)}</div>",
-                            unsafe_allow_html=True,
-                        )
+                    preview = repository.risks_triggered_by_vc2(chosen_trigger, vc2, trigger_edges)
+                    _render_trigger_list(preview)
     return keys
 
 

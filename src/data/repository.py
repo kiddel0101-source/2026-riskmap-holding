@@ -70,37 +70,70 @@ def risks_for_sc_link(risks: pd.DataFrame, sc_link_id: str) -> pd.DataFrame:
 
 
 def get_risk_taxonomy(workbook_bytes: bytes) -> pd.DataFrame:
-    """Danh muc rui ro toan Tap doan GELEX (sheet '0. Danh muc rui ro', 146 dong - RONG hon
-    4_Risk_Register dang dung, nhung dung chung khong gian ma risk_id). Chi lay 2 cot can
-    de tra cuu: risk_id -> risk_category_l2 (ma nhom dang so, vd '4.3. Mua hang/dich vu'),
-    la khoa noi voi sheet 8_Risk_node (xem risks_triggered_by)."""
+    """Danh muc rui ro toan Tap doan GELEX (sheet '0. Danh muc rui ro', 145 dong - RONG hon
+    4_Risk_Register dang dung, nhung dung chung khong gian ma risk_id). Lay risk_id +
+    VC2_ID (da xac minh: cot noi thang risk_id sang hoat dong trong Sheet1, phu 143/145
+    dong) - la khoa noi sang get_value_chain_v2()/get_risk_trigger_edges() (xem
+    risks_triggered_by). Sheet co 2 cot trung ten "VC2_ID"; pandas tu doi ten cot thu 2
+    thanh "VC2_ID.1" - chi dung cot dau (chinh).
+    """
     df = _read_sheet(workbook_bytes, "0. Danh mục rủi ro")
-    return df[["risk_id", "risk_category_l2"]].dropna()
+    out = df[["risk_id", "VC2_ID"]].rename(columns={"VC2_ID": "vc2_id"})
+    return out.dropna()
+
+
+def get_value_chain_v2(workbook_bytes: bytes) -> pd.DataFrame:
+    """Mo hinh Chuoi gia tri Porter DAY DU 9 khoi (sheet 'Sheet1', 75 dong) dung chung cho
+    toan Tap doan GELEX - KHONG co cot cong ty, thay the 2_Value_Chain_Master CHI o trang
+    Chuoi gia tri (cac trang khac - Trang chu, Su kien rui ro - van dung
+    2_Value_Chain_Master nhu cu, xem CLAUDE.md Muc 11.3).
+
+    1 dong = 1 (hoat dong, rui ro) - 1 hoat dong (vc2_id) co the lap lai nhieu dong neu co
+    nhieu rui ro gan truc tiep (toi da 3), cot rui ro se rong o cac hoat dong chua co rui ro.
+    """
+    df = _read_sheet(workbook_bytes, "Sheet1")
+    return df.rename(columns={
+        "Chuỗi giá trị 1": "vc1_name", "VC1_ID": "vc1_id",
+        "Chuỗi giá trị 2": "vc2_name", "VC2_ID": "vc2_id",
+        "Phân loại": "category", "Value chain_3": "vc3_name",
+        "Risk": "risk_name", "Risk_ID": "risk_id",
+        "Problem": "problem", "Details": "details",
+    })
 
 
 def get_risk_trigger_edges(workbook_bytes: bytes) -> pd.DataFrame:
-    """Quan he "nhom rui ro nay co the kich hoat nhom khac" (sheet 8_Risk_node, 220 dong).
-    Chieu da xac nhan voi nguoi dung: Source Node -> kich hoat -> Target Node. Cot mau va
-    cot "a" trong sheet goc khong co y nghia (da hoi nguoi dung) - bo qua khong doc."""
-    df = _read_sheet(workbook_bytes, "8_Risk_node")
-    df = df.rename(columns={"Source Node": "source", "Target Node": "target"})
-    return df[["source", "target"]].dropna()
+    """Quan he "rui ro nay co the kich hoat rui ro khac" (sheet Risk_Linkages) - CHI TIET
+    hon han 8_Risk_node cu (noi thang risk_id voi risk_id, kem mo ta co che + muc anh
+    huong, khong chi noi ten nhom chung chung). Da chot voi nguoi dung chuyen han sang dung
+    sheet nay. ⚠️ Hien CHI co 1 dong du lieu that (LNK-001) - do phu con rat thap, nguoi
+    dung da chap nhan dung tam trong luc cho bo sung them."""
+    df = _read_sheet(workbook_bytes, "Risk_Linkages")
+    return df.rename(columns={
+        "Source_Risk_ID": "source_risk_id", "Source_Risk_Name": "source_risk_name",
+        "Target_Risk_ID": "target_risk_id", "Target_Risk_Name": "target_risk_name",
+        "Mô tả cơ chế liên kết": "mechanism", "Mức độ ảnh hưởng": "impact_level",
+    }).dropna(subset=["source_risk_id", "target_risk_id"])
 
 
-def risks_triggered_by(risk_id: str, taxonomy: pd.DataFrame, edges: pd.DataFrame) -> list[str]:
-    """Ten cac nhom rui ro (risk_category_l2) ma risk_id da cho co the kich hoat, dua theo
-    danh muc rui ro Tap doan + sheet 8_Risk_node. Tra ve rong neu khong tra duoc nhom, hoac
-    nhom do khong co quan he kich hoat nao - KHONG tu suy dien."""
-    cat_rows = taxonomy.loc[taxonomy["risk_id"] == risk_id, "risk_category_l2"]
-    if cat_rows.empty:
+def risks_triggered_by_vc2(vc2_id: str, vc2_df: pd.DataFrame, edges: pd.DataFrame) -> list[dict]:
+    """Danh sach rui ro CO THE BI KICH HOAT boi 1 hoat dong Chuoi gia tri (vc2_id) - tra ve
+    rong neu hoat dong chua gan rui ro nao, hoac rui ro do khong co quan he kich hoat nao
+    trong Risk_Linkages - KHONG tu suy dien. Dung truc tiep cho rui ro nhap (nguoi dung tu
+    chon 1 hoat dong thay vi co san risk_id)."""
+    source_ids = vc2_df.loc[vc2_df["vc2_id"] == vc2_id, "risk_id"].dropna().unique().tolist()
+    if not source_ids:
         return []
-    return risks_triggered_by_category(cat_rows.iloc[0], edges)
+    hits = edges[edges["source_risk_id"].isin(source_ids)]
+    return hits[["target_risk_id", "target_risk_name", "mechanism", "impact_level"]].drop_duplicates().to_dict("records")
 
 
-def risks_triggered_by_category(category_l2: str, edges: pd.DataFrame) -> list[str]:
-    """Nhu risks_triggered_by nhung tra thang theo 1 ma nhom rui ro cap 2 da biet (dung cho
-    rui ro nhap - noi nguoi dung tu chon nhom thay vi co san risk_id)."""
-    return sorted(edges.loc[edges["source"] == category_l2, "target"].unique().tolist())
+def risks_triggered_by(risk_id: str, taxonomy: pd.DataFrame, vc2_df: pd.DataFrame, edges: pd.DataFrame) -> list[dict]:
+    """Nhu risks_triggered_by_vc2 nhung bat dau tu 1 risk_id da co trong Risk Register
+    (RR.xxxx) - tra qua VC2_ID (0. Danh muc rui ro) roi tra tiep nhu tren."""
+    vc2_rows = taxonomy.loc[taxonomy["risk_id"] == risk_id, "vc2_id"]
+    if vc2_rows.empty:
+        return []
+    return risks_triggered_by_vc2(vc2_rows.iloc[0], vc2_df, edges)
 
 
 def companies_in(df: pd.DataFrame, companies: pd.DataFrame, id_columns: list[str]) -> set[str]:

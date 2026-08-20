@@ -273,24 +273,54 @@ sự kiện** — dữ liệu này **chỉ ghi trong DB riêng của app** (2 b�
   ghi chú rõ đây chưa phải rủi ro chính thức, cán bộ phải tự thêm vào Excel nếu xác nhận là thật.
 - MVP chưa có chức năng "bỏ xác nhận"/xoá — tích nhầm thì tạm thời chưa tự sửa được trên UI.
 
-### 11.2. "Rủi ro có thể kích hoạt" — 2 sheet MỚI (`0. Danh mục rủi ro`, `8_Risk_node`)
+### 11.2. "Rủi ro có thể kích hoạt" — ĐÃ CHUYỂN sang `Risk_Linkages` + `Sheet1` (Phần 3)
+
+⚠️ **Lịch sử:** bản đầu (Phần 2) dùng `0. Danh mục rủi ro` + `8_Risk_node` (nối theo TÊN NHÓM rủi
+ro chung chung). Sau đó workbook được bổ sung 3 sheet mới (`Sheet1`, `Risk_Linkages`,
+`Mapping_RiskCategory_VC`) và `0. Danh mục rủi ro` được thêm cột `VC2_ID` — người dùng đã chốt
+chuyển hẳn sang cơ chế chính xác hơn này, không dùng `8_Risk_node` nữa (dù sheet đó vẫn còn trong
+workbook, code không đọc nữa).
 
 Đã xác minh trực tiếp trên workbook thật (không suy đoán):
 
-- **`0. Danh mục rủi ro`** (146 dòng, header dòng đầu tiên = 0) — danh mục rủi ro **toàn Tập
-  đoàn GELEX**, RỘNG HƠN `4_Risk_Register` app đang dùng cho CADIVI/EMIC, nhưng **dùng chung
-  không gian mã `risk_id`** (đã kiểm tra RR.0056/58/63/89 khớp cả 2 sheet). Cột cần dùng:
-  `risk_id`, `risk_category_l2` (mã nhóm dạng số, vd "4.3. Mua hàng/dịch vụ").
-- **`8_Risk_node`** (220 dòng, header dòng đầu tiên = 0) — quan hệ "nhóm rủi ro này có thể kích
-  hoạt nhóm khác": cột `Source Node`, `Target Node` (đã chốt với người dùng: **Source → kích
-  hoạt → Target**), cộng 2 cột màu + 1 cột `a` — **`a` không có ý nghĩa gì, không đọc/không hiển
-  thị** (đã hỏi trực tiếp người dùng). Nhãn Source/Target khớp đúng 73/81 với `risk_category_l2`
-  của `0. Danh mục rủi ro`.
-- Cách nối: `risk_id` → tra `risk_category_l2` trong `0. Danh mục rủi ro` → tra `8_Risk_node`
-  theo `Source Node` == giá trị đó → lấy danh sách `Target Node` (chỉ hiện TÊN nhóm, không đối
-  chiếu ngược vào Risk Register hay lọc theo công ty — đã chốt với người dùng "chỉ nêu tên rủi ro
-  rà soát được từ sheet 8_Risk_node"). Không tra được nhóm, hoặc nhóm không có quan hệ nào → im
-  lặng bỏ qua, không hiện khung rỗng.
-- Hàm dùng: `repository.get_risk_taxonomy()`, `get_risk_trigger_edges()`, `risks_triggered_by()`
-  (theo risk_id có sẵn), `risks_triggered_by_category()` (theo 1 mã nhóm người dùng tự chọn —
-  dùng cho rủi ro nháp, vì rủi ro nháp chưa có risk_id để tra ngược).
+- **`0. Danh mục rủi ro`** (145 dòng) nay có thêm cột **`VC2_ID`** nối thẳng `risk_id` (RR.xxxx,
+  dùng chung không gian mã với `4_Risk_Register`) sang 1 hoạt động trong `Sheet1` — phủ 143/145
+  dòng, đủ cho toàn bộ 12 rủi ro CADIVI/EMIC. ⚠️ Sheet có 2 cột trùng tên `VC2_ID`; pandas tự đổi
+  tên cột thứ 2 thành `VC2_ID.1` — **chỉ dùng cột đầu** (chính), bỏ qua `.1`.
+- **`Risk_Linkages`** — quan hệ **rủi ro → rủi ro trực tiếp** (không phải nhóm chung chung):
+  `Source_Risk_ID/Name`, `Target_Risk_ID/Name` (mã dạng `RSK-xxx`, không gian mã RIÊNG của
+  `Sheet1`, không phải `RR.xxxx`), `Mô tả cơ chế liên kết`, `Mức độ ảnh hưởng`. ⚠️ **Hiện chỉ có 1
+  dòng dữ liệu thật** (LNK-001: RSK-018 → RSK-002) — độ phủ sẽ rất thưa cho tới khi được bổ sung
+  thêm, người dùng đã chấp nhận dùng ngay dù thưa.
+- **`Mapping_RiskCategory_VC`** (85 dòng, nối `risk_category_l2` ↔ `VC2_ID`) — **không còn cần
+  dùng** vì `0. Danh mục rủi ro` đã có `VC2_ID` trực tiếp, đường nối ngắn hơn. Sheet vẫn còn trong
+  workbook, giữ lại phòng khi cần fallback cho ~2 dòng thiếu `VC2_ID`.
+- Cách nối: `risk_id` → `VC2_ID` (từ `0. Danh mục rủi ro`) → các `risk_id` dạng `RSK-xxx` gắn với
+  `VC2_ID` đó trong `Sheet1` (1 hoạt động có thể có nhiều rủi ro, tối đa 3) → lọc `Risk_Linkages`
+  theo `Source_Risk_ID` → trả **tên rủi ro đích + mức ảnh hưởng + mô tả cơ chế** (chi tiết hơn hẳn
+  bản cũ). Không tra được, hoặc không có quan hệ nào → im lặng bỏ qua, không hiện khung rỗng.
+- Hàm dùng: `repository.get_risk_taxonomy()` (nay trả thêm `vc2_id`), `get_value_chain_v2()`,
+  `get_risk_trigger_edges()` (đọc `Risk_Linkages`), `risks_triggered_by(risk_id, taxonomy, vc2_df,
+  edges)` (theo risk_id có sẵn), `risks_triggered_by_vc2(vc2_id, vc2_df, edges)` (theo 1 hoạt động
+  người dùng tự chọn — dùng cho rủi ro nháp).
+
+### 11.3. Trang Chuỗi giá trị — nguồn dữ liệu THAY THẾ bằng `Sheet1` (Phần 3)
+
+⚠️ **App hiện có 2 mô hình Chuỗi giá trị SONG SONG, đừng nhầm lẫn:**
+
+- `2_Value_Chain_Master` (qua `repository.get_value_chain()` + `viz.value_chain.build_value_chain_map()`)
+  — mô hình CŨ, có cột `company_id` (theo từng công ty CADIVI/EMIC), 7 khối, `vc_node_id` kiểu
+  "MS-001". Vẫn dùng ở **Trang chủ** và **Sự kiện rủi ro** (dò từ khóa hoạt động Chuỗi giá trị) —
+  KHÔNG đổi ở 2 trang này.
+- `Sheet1` (qua `repository.get_value_chain_v2()` + `viz.value_chain.build_value_chain_map_v2()`)
+  — mô hình MỚI, **không có cột công ty** (dùng chung toàn Tập đoàn), đủ **9 khối Porter** (thêm
+  Cơ sở hạ tầng doanh nghiệp + Quản trị nguồn nhân lực), có rủi ro gắn TRỰC TIẾP theo hoạt động
+  (`risk_id` dạng `RSK-xxx`, không phải `RR.xxxx`). Chỉ dùng riêng ở **trang Chuỗi giá trị**
+  (`pages/2_Chuoi_gia_tri.py`) — đã thay thế hoàn toàn mô hình cũ ở trang này theo yêu cầu người
+  dùng.
+- `vc2_id` (kiểu "MS-005" trong Sheet1) và `vc_node_id` (kiểu "MS-001" trong `2_Value_Chain_Master`)
+  **KHÔNG cùng không gian mã** dù format giống nhau — đã kiểm tra thực tế 2 mã khác nội dung nhau.
+  Đừng bao giờ so sánh trực tiếp giữa 2 hệ này.
+- Hộp thoại khi bấm vào 1 ô ở trang Chuỗi giá trị dùng `risk_dialog.show_activity_risks()` (MỚI,
+  rút gọn) thay vì `show_risk_profile()` — vì `Sheet1` không có điểm số/RAG/chủ trì/kiểm soát như
+  Risk Register, chỉ có `Risk_ID`, tên rủi ro, `Problem`, `Details`.
