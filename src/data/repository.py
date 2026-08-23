@@ -90,11 +90,15 @@ def get_value_chain_v2(workbook_bytes: bytes) -> pd.DataFrame:
 
     1 dong = 1 (hoat dong, rui ro) - 1 hoat dong (vc2_id) co the lap lai nhieu dong neu co
     nhieu rui ro gan truc tiep (toi da 3), cot rui ro se rong o cac hoat dong chua co rui ro.
+
+    ⚠️ Sheet nay dang duoc nguoi phu trach du lieu chinh sua truc tiep tren SharePoint - da
+    it nhat 1 lan doi ten cot goc (vd "Chuoi gia tri 1" -> "Value Chain"). Rename map o day
+    chap nhan CA 2 ten cu/moi cho tung cot de giam rui ro vo lai khi ho doi tiep.
     """
     df = _read_sheet(workbook_bytes, "Sheet1")
     return df.rename(columns={
-        "Chuỗi giá trị 1": "vc1_name", "VC1_ID": "vc1_id",
-        "Chuỗi giá trị 2": "vc2_name", "VC2_ID": "vc2_id",
+        "Chuỗi giá trị 1": "vc1_name", "Value Chain": "vc1_name", "VC1_ID": "vc1_id",
+        "Chuỗi giá trị 2": "vc2_name", "Sub-Value Chain": "vc2_name", "VC2_ID": "vc2_id",
         "Phân loại": "category", "Value chain_3": "vc3_name",
         "Risk": "risk_name", "Risk_ID": "risk_id",
         "Problem": "problem", "Details": "details",

@@ -312,15 +312,23 @@ workbook, code không đọc nữa).
   — mô hình CŨ, có cột `company_id` (theo từng công ty CADIVI/EMIC), 7 khối, `vc_node_id` kiểu
   "MS-001". Vẫn dùng ở **Trang chủ** và **Sự kiện rủi ro** (dò từ khóa hoạt động Chuỗi giá trị) —
   KHÔNG đổi ở 2 trang này.
-- `Sheet1` (qua `repository.get_value_chain_v2()` + `viz.value_chain.build_value_chain_map_v2()`)
-  — mô hình MỚI, **không có cột công ty** (dùng chung toàn Tập đoàn), đủ **9 khối Porter** (thêm
-  Cơ sở hạ tầng doanh nghiệp + Quản trị nguồn nhân lực), có rủi ro gắn TRỰC TIẾP theo hoạt động
-  (`risk_id` dạng `RSK-xxx`, không phải `RR.xxxx`). Chỉ dùng riêng ở **trang Chuỗi giá trị**
-  (`pages/2_Chuoi_gia_tri.py`) — đã thay thế hoàn toàn mô hình cũ ở trang này theo yêu cầu người
-  dùng.
+- `Sheet1` (qua `repository.get_value_chain_v2()`) — mô hình MỚI, **không có cột công ty** (dùng
+  chung toàn Tập đoàn), đủ **9 khối Porter** (thêm Cơ sở hạ tầng doanh nghiệp + Quản trị nguồn
+  nhân lực), có rủi ro gắn TRỰC TIẾP theo hoạt động (`risk_id` dạng `RSK-xxx`, không phải
+  `RR.xxxx`). Chỉ dùng riêng ở **trang Chuỗi giá trị** (`pages/2_Chuoi_gia_tri.py`) — đã thay thế
+  hoàn toàn mô hình cũ ở trang này theo yêu cầu người dùng.
+- ⚠️ Sheet1 vừa bị đổi tên 2 cột gốc trên SharePoint (`Chuỗi giá trị 1`→`Value Chain`, `Chuỗi giá
+  trị 2`→`Sub-Value Chain`) — `get_value_chain_v2()` nhận cả tên cũ/mới để không vỡ lại nếu người
+  phụ trách dữ liệu đổi tên tiếp.
 - `vc2_id` (kiểu "MS-005" trong Sheet1) và `vc_node_id` (kiểu "MS-001" trong `2_Value_Chain_Master`)
   **KHÔNG cùng không gian mã** dù format giống nhau — đã kiểm tra thực tế 2 mã khác nội dung nhau.
   Đừng bao giờ so sánh trực tiếp giữa 2 hệ này.
-- Hộp thoại khi bấm vào 1 ô ở trang Chuỗi giá trị dùng `risk_dialog.show_activity_risks()` (MỚI,
-  rút gọn) thay vì `show_risk_profile()` — vì `Sheet1` không có điểm số/RAG/chủ trì/kiểm soát như
-  Risk Register, chỉ có `Risk_ID`, tên rủi ro, `Problem`, `Details`.
+- **Trang hiện hiển thị 2 CẤP** (đã chốt với người dùng): `viz.value_chain.build_value_chain_blocks()`
+  vẽ **cấp 1** — mỗi khối chức năng là 1 box TRUNG TÍNH (không tô màu rủi ro), 2 hàng theo khung
+  Porter (5 khối Chính/4 khối Hỗ trợ, dùng `_PRIMARY_FUNCTIONS_V2`/`_SUPPORT_FUNCTIONS_V2`). Bấm 1
+  khối → **mở rộng ngay trên trang** (không dùng hộp thoại) danh sách hoạt động (sub-value chain,
+  cấp 2) trong khối đó, mỗi hoạt động có chip màu số rủi ro. Bấm nút "Xem rủi ro" trên 1 hoạt động
+  mới mở hộp thoại `risk_dialog.show_activity_risks()` (cấp 3, rút gọn — vì `Sheet1` không có điểm
+  số/RAG/chủ trì/kiểm soát như Risk Register, chỉ có `Risk_ID`, tên rủi ro, `Problem`, `Details`).
+  Hàm `build_value_chain_map_v2()` (bản vẽ hết 66 hoạt động trong 1 lần, không thu gọn theo khối)
+  đã bị THAY THẾ hoàn toàn, không còn trong code.

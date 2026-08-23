@@ -142,6 +142,12 @@ _FUNCTION_ORDER_V2 = [
     "Dịch vụ sau bán hàng", "Thu mua", "Phát triển công nghệ",
     "Cơ sở hạ tầng doanh nghiệp", "Quản trị nguồn nhân lực",
 ]
+# 5 khoi CHINH (Primary) + 4 khoi HO TRO (Support) theo dung khung Porter - day la phan
+# loai o CAP KHOI, khac voi cot "category" (Phan loai Chinh/Ho tro) trong tung dong du lieu
+# von la phan loai o CAP HOAT DONG (vd hoat dong "PR-003" thuoc khoi Ho tro "Thu mua" nhung
+# ban than no van co the duoc gan category="Hỗ trợ" trong du lieu - 2 truc doc lap nhau).
+_PRIMARY_FUNCTIONS_V2 = _FUNCTION_ORDER_V2[:5]
+_SUPPORT_FUNCTIONS_V2 = _FUNCTION_ORDER_V2[5:]
 
 
 def _sort_functions_v2(functions: list[str]) -> list[str]:
@@ -149,92 +155,75 @@ def _sort_functions_v2(functions: list[str]) -> list[str]:
     return sorted(functions, key=lambda fn: order_index.get(fn.lower(), len(_FUNCTION_ORDER_V2)))
 
 
-def build_value_chain_map_v2(vc2: pd.DataFrame, *, categories: set[str] | None = None) -> go.Figure | None:
-    """Ban do Chuoi gia tri Porter DAY DU 9 khoi, dung chung cho toan Tap doan GELEX (nguon:
-    Sheet1 qua repository.get_value_chain_v2) - KHONG loc theo cong ty vi du lieu khong co
-    chieu nay. Moi cot 1 khoi chuc nang, moi o 1 hoat dong (vc2_id), mau theo so rui ro
-    Sheet1 gan TRUC TIEP vao hoat dong do (0 = xanh, 1 = cam, >=2 = do).
-
-    `vc2` la 1 dong = 1 (hoat dong, rui ro) - 1 hoat dong co the lap lai nhieu dong neu co
-    nhieu rui ro (toi da 3), nen phai group ve danh sach hoat dong duy nhat truoc khi ve.
-    """
+def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
+    """Ban do CAP 1 (rut gon) cho trang Chuoi gia tri: moi khoi chuc nang la 1 box duy nhat,
+    TRUNG TINH khong to mau theo rui ro (da chot voi nguoi dung - mau rui ro chi hien o cap
+    hoat dong sau khi bung ra). 2 hang dung khung Porter: 5 khoi CHINH o tren, 4 khoi HO TRO
+    o duoi. Bam vao 1 box (customdata = ten khoi) de trang boc danh sach hoat dong
+    (sub-value chain) trong khoi do ngay ben duoi - KHONG dung hop thoai (da chot voi nguoi
+    dung). Luon co du 9 khoi, khong loc theo "Nhóm hoạt động" (bo loc do chi anh huong danh
+    sach hoat dong hien ra sau khi bam, khong an bot khoi)."""
     palette = risk_palette()
-    rows = vc2[vc2["category"].isin(categories)] if categories else vc2
-    if rows.empty:
-        return None
+    neutral = palette["grey"]
+    nodes = vc2.drop_duplicates(subset=["vc2_id"])
+    counts_by_fn = nodes.groupby("vc1_name").size()
 
-    nodes = rows.drop_duplicates(subset=["vc2_id"])[["vc1_name", "vc2_id", "vc2_name", "category"]]
-    nodes = nodes.reset_index(drop=True)
-    risk_counts = rows.dropna(subset=["risk_id"]).groupby("vc2_id")["risk_id"].nunique()
+    all_fns = list(dict.fromkeys(nodes["vc1_name"].fillna("Khác")))
+    primary_fns = _sort_functions_v2([f for f in all_fns if f in _PRIMARY_FUNCTIONS_V2])
+    support_fns = _sort_functions_v2([f for f in all_fns if f not in primary_fns])
+    bands = []
+    if primary_fns:
+        bands.append(("HOẠT ĐỘNG CHÍNH", primary_fns))
+    if support_fns:
+        bands.append(("HOẠT ĐỘNG HỖ TRỢ", support_fns))
 
-    functions = _sort_functions_v2(list(dict.fromkeys(nodes["vc1_name"].fillna("Khác"))))
-    n_cols = len(functions)
-    by_fn = {fn: nodes[nodes["vc1_name"].fillna("Khác") == fn].reset_index(drop=True) for fn in functions}
-    max_rows = max(len(df) for df in by_fn.values())
-
-    col_w = 1.0 / n_cols
-    row_h = 1.0 / max_rows
-    box_w, box_h = col_w * 0.90, row_h * 0.74
+    GAP = 0.16
+    band_h = (1.0 - GAP * (len(bands) - 1)) / len(bands) if bands else 1.0
+    box_h = band_h * 0.60
 
     fig = go.Figure()
     hov_x, hov_y, hov_text, hov_ids = [], [], [], []
 
-    for ci, fn in enumerate(functions):
-        cx = (ci + 0.5) * col_w
-        df = by_fn[fn]
-
-        # Tieu de bọc toi da 2 dong (9 cot lam moi cot rat hep - de chu tieu de bi de len
-        # nhau neu chi 1 dong co dinh nhu truoc, da gap loi nay tren du lieu that).
-        header = wrap_text(fn.upper(), width=15, max_lines=2)
-        fig.add_annotation(
-            x=cx, y=1.065, xref="x", yref="y", text=f"<b>{header}</b>",
-            showarrow=False, font=dict(size=9.5), opacity=0.75, align="center",
-        )
-        fig.add_shape(
-            type="rect", x0=cx - col_w * 0.47, x1=cx + col_w * 0.47, y0=-0.02, y1=1.02,
-            line=dict(width=0), fillcolor=hex_to_rgba(palette["grey"], 0.07), layer="below",
-        )
-
-        for ri, r in df.iterrows():
-            cy = 1 - (ri + 0.5) * row_h
-            count = int(risk_counts.get(r["vc2_id"], 0))
-            color = _risk_color(count, palette)
-            is_support = r.get("category") == "Hỗ trợ"
-
+    band_y1 = 1.0
+    for band_label, fns in bands:
+        n_cols = len(fns)
+        col_w = 1.0 / n_cols
+        cy = band_y1 - band_h / 2
+        if len(bands) > 1:
+            fig.add_annotation(
+                x=0, y=band_y1 + 0.03, xref="x", yref="y", text=f"<b>{band_label}</b>",
+                showarrow=False, font=dict(size=11, color=neutral), opacity=0.95, xanchor="left",
+            )
+        for ci, fn in enumerate(fns):
+            cx = (ci + 0.5) * col_w
+            box_w = col_w * 0.86
             fig.add_shape(
-                type="rect",
-                x0=cx - box_w / 2, x1=cx + box_w / 2,
-                y0=cy - box_h / 2, y1=cy + box_h / 2,
-                line=dict(color=color, width=1.6, dash="dot" if is_support else "solid"),
-                fillcolor=hex_to_rgba(color, 0.14),
-                layer="below",
+                type="rect", x0=cx - box_w / 2, x1=cx + box_w / 2, y0=cy - box_h / 2, y1=cy + box_h / 2,
+                line=dict(color=neutral, width=1.8), fillcolor=hex_to_rgba(neutral, 0.09), layer="below",
             )
-            label = wrap_text(r["vc2_name"], width=20, max_lines=2)
+            label_wrap_width = max(12, min(24, round(box_w * 150)))
+            header = wrap_text(fn.upper(), width=label_wrap_width, max_lines=2)
             fig.add_annotation(
-                x=cx, y=cy + box_h * 0.06, xref="x", yref="y", text=label,
-                showarrow=False, font=dict(size=9.5, color=color), align="center",
+                x=cx, y=cy + box_h * 0.18, xref="x", yref="y", text=f"<b>{header}</b>",
+                showarrow=False, font=dict(size=11, color=neutral), align="center",
             )
-            badge = f"{r['vc2_id']}"
-            if count:
-                badge += f"  ·  {count} rủi ro"
+            n_act = int(counts_by_fn.get(fn, 0))
             fig.add_annotation(
-                x=cx, y=cy - box_h * 0.32, xref="x", yref="y", text=badge,
-                showarrow=False, font=dict(size=8, color=color), opacity=0.85,
+                x=cx, y=cy - box_h * 0.32, xref="x", yref="y", text=f"{n_act} hoạt động",
+                showarrow=False, font=dict(size=9.5, color=neutral), opacity=0.85,
             )
 
             hov_x.append(cx)
             hov_y.append(cy)
-            hov_ids.append(r["vc2_id"])
-            hov_text.append(
-                f"<b>{r['vc2_id']} — {r['vc2_name']}</b><br>"
-                f"{nz(r.get('category'))} · {fn}<br>"
-                f"Rủi ro gắn trực tiếp: {count}"
-            )
+            hov_ids.append(fn)
+            hov_text.append(f"<b>{fn}</b><br>{n_act} hoạt động — bấm để xem danh sách")
+
+        band_y1 -= (band_h + GAP)
 
     fig.add_trace(
         go.Scatter(
             x=hov_x, y=hov_y, mode="markers",
-            marker=dict(size=42, opacity=0),
+            marker=dict(size=70, opacity=0),
             customdata=hov_ids,
             hovertext=hov_text, hoverinfo="text", showlegend=False,
         )
@@ -242,7 +231,7 @@ def build_value_chain_map_v2(vc2: pd.DataFrame, *, categories: set[str] | None =
     fig.update_layout(
         template=plotly_template(),
         xaxis=dict(visible=False, range=[0, 1], fixedrange=False),
-        yaxis=dict(visible=False, range=[-0.06, 1.14]),
+        yaxis=dict(visible=False, range=[-0.04, 1.07]),
         margin=dict(l=6, r=6, t=6, b=6),
         hoverlabel=dict(align="left"),
         clickmode="event+select",
