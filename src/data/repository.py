@@ -140,6 +140,45 @@ def risks_triggered_by(risk_id: str, taxonomy: pd.DataFrame, vc2_df: pd.DataFram
     return risks_triggered_by_vc2(vc2_rows.iloc[0], vc2_df, edges)
 
 
+def get_rcm_risks(workbook_bytes: bytes) -> pd.DataFrame:
+    """Ma tran kiem soat rui ro (sheet '7_RCM', header dong dau tien) - nguon rui ro THU 3, tach
+    biet han risk_id RSK-xxx (Sheet1) va RR.xxxx (Risk Register): cot "Risk" o day la MO TA rui
+    ro theo danh muc (vd "3.4.2. Quan ly chinh sach ban hang, chiet khau", ma "Risk_category_ID"
+    = "RC-3.4"), khong phai 1 ma dinh danh rui ro. Gan theo cong ty (company_id: CADIVI/EMIC).
+    Noi sang Sheet1 qua VC2_ID - da xac minh khop 16/16.
+
+    ⚠️ Doc theo VI TRI COT (khong theo ten) vi sheet co nhieu cot TRUNG TEN nhau giua khoi
+    kiem soat Entity Level va Transaction Level (vd 2 cot "Mo ta kiem soat", va ten cot danh gia
+    "hieu luc" bi go thieu dau cach - "hiệu lựccủa" - khac "hiệu lực của" o ban Transaction, nen
+    khong the dua vao ten cot on dinh). Mapping theo dung thu tu cot Excel nguoi dung da xac
+    nhan (xem CLAUDE.md Muc 11.4): I-N = chi tiet kiem soat Entity Level, O-P = danh gia hieu
+    luc/hieu qua Entity, R-W = chi tiet kiem soat Transaction Level, X-Y = danh gia hieu
+    luc/hieu qua Transaction. Neu nguoi phu trach du lieu chen/xoa/doi thu tu cot tren
+    SharePoint, mapping nay se doc sai ma KHONG bao loi - phai doi chieu lai truc tiep voi sheet
+    that khi thay so lieu bat thuong.
+
+    Sheet co dong lap y het nhau (vd 1 rui ro co ca kiem soat Entity lan Transaction se chiem 2
+    dong tho) - drop_duplicates tren (company_id, vc2_id, risk_desc, risk_category_id) de con
+    dung cac rui ro duy nhat.
+    """
+    df = _read_sheet(workbook_bytes, "7_RCM")
+    out = pd.DataFrame({
+        "company_id": df.iloc[:, 0], "vc1_name": df.iloc[:, 1], "vc1_id": df.iloc[:, 2],
+        "vc2_name": df.iloc[:, 3], "vc2_id": df.iloc[:, 4],
+        "risk_desc": df.iloc[:, 5], "risk_category_id": df.iloc[:, 6], "risk_details": df.iloc[:, 7],
+        # Kiem soat cap Entity Level - cot I-N (chi tiet) + O-P (danh gia hieu luc/hieu qua)
+        "ent_control_desc": df.iloc[:, 8], "ent_owner": df.iloc[:, 9], "ent_approval": df.iloc[:, 10],
+        "ent_coverage": df.iloc[:, 11], "ent_quant": df.iloc[:, 12], "ent_frequency": df.iloc[:, 13],
+        "ent_valid": df.iloc[:, 14], "ent_effective": df.iloc[:, 15],
+        # Kiem soat cap Transaction Level - cot R-W (chi tiet) + X-Y (danh gia hieu luc/hieu qua)
+        "tx_control_desc": df.iloc[:, 17], "tx_reviewer": df.iloc[:, 18], "tx_approver": df.iloc[:, 19],
+        "tx_frequency": df.iloc[:, 20], "tx_form": df.iloc[:, 21], "tx_platform": df.iloc[:, 22],
+        "tx_valid": df.iloc[:, 23], "tx_effective": df.iloc[:, 24],
+    })
+    out = out.dropna(subset=["vc2_id"])
+    return out.drop_duplicates(subset=["company_id", "vc2_id", "risk_desc", "risk_category_id"])
+
+
 def companies_in(df: pd.DataFrame, companies: pd.DataFrame, id_columns: list[str]) -> set[str]:
     """Cong ty (trong Company Master) co xuat hien trong 1 hoac nhieu cot id cua df da cho.
     Dung de tinh available_ids rieng cho tung trang (vd supply chain xet ca 2 cot

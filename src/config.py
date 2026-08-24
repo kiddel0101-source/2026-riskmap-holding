@@ -9,7 +9,6 @@ CACHE_TTL_SECONDS = 900  # 15 phut
 # Vi tri dong header (0-indexed) khac nhau giua cac sheet: 1_Company_Master va
 # 6_Risk_Appetite_Threshold chi co 1 dong tieu de + 1 dong trong truoc header (header=2);
 # cac sheet con lai co them 1 dong ghi chu huong dan truoc dong trong (header=3).
-# 7_RCM co header long nhau -> de lai dot sau, khong doc trong MVP nay.
 SHEET_HEADER_ROW = {
     "1_Company_Master": 2,
     "2_Value_Chain_Master": 3,
@@ -26,6 +25,9 @@ SHEET_HEADER_ROW = {
     # chi tiet hon 8_Risk_node (xem CLAUDE.md Muc 11.2/11.3). Header dong dau tien.
     "Sheet1": 0,
     "Risk_Linkages": 0,
+    # Ma tran kiem soat rui ro (xem CLAUDE.md Muc 11.4) - tieu de nam ngay dong dau tien du
+    # co 2 dong ghi chu huong dan phia tren (khong tinh vao header), da kiem tra truc tiep.
+    "7_RCM": 2,
 }
 
 RAG_COLORS = {

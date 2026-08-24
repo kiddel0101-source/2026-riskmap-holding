@@ -343,3 +343,46 @@ workbook, code không đọc nữa).
   nghiệm chung: **bất cứ đâu cần so khớp/phân loại theo dữ liệu Sheet1, luôn ưu tiên khớp theo mã
   ID ổn định, không khớp theo tên hiển thị** — tên hiển thị trên sheet này đã đổi nhiều lần và sẽ
   còn đổi tiếp.
+
+### 11.4. Rủi ro từ `7_RCM` — nguồn rủi ro THỨ 3, cộng dồn vào trang Chuỗi giá trị
+
+Sheet **`7_RCM`** (Ma trận kiểm soát rủi ro, header ngay dòng đầu) là nguồn rủi ro **tách biệt
+hoàn toàn** với `RSK-xxx` (Sheet1) và `RR.xxxx` (Risk Register) — cột `"Risk"` ở đây là **mô tả
+rủi ro theo danh mục** (vd *"4.3.1. Sự phụ thuộc vào nhóm nhà cung cấp"*, mã `Risk_category_ID` =
+`"RC-4.3"`), không phải 1 mã định danh. Gắn theo công ty (`company_id`: CADIVI/EMIC). Nối sang
+Sheet1 qua `VC2_ID` — đã xác minh khớp 16/16 (tại thời điểm kiểm tra).
+
+⚠️ **Sheet này đang được người phụ trách chỉnh sửa TRỰC TIẾP trong lúc làm tính năng** — đã bắt gặp
+thật 2 lần trong cùng 1 buổi: (1) số dòng dữ liệu giảm từ 20 (CADIVI+EMIC) xuống còn 12 (chỉ
+CADIVI, các dòng EMIC bị xoá/di chuyển đi đâu đó), khiến `n_rcm_risks` tụt từ 18 xuống 12 giữa 2
+lần mở app; (2) cột đánh giá kiểm soát đổi cấu trúc — bản đầu gộp chung "Đánh giá hiệu lực, hiệu
+quả của kiểm soát" thành 1 cột, bản sau **tách thành 2 cột riêng** "Đánh giá hiệu lực của kiểm
+soát" + "Đánh giá hiệu quả của kiểm soát" (làm số cột từ 24 tăng lên 26). Rút kinh nghiệm: đừng
+coi số liệu/cấu trúc cột của sheet này là cố định, luôn đối chiếu lại trực tiếp khi số liệu trông
+bất thường.
+
+- `repository.get_rcm_risks()` đọc **theo VỊ TRÍ cột Excel** (I-N, O-P, R-W, X-Y — xem docstring
+  hàm) chứ không theo tên, vì tên cột kiểm soát TRÙNG NHAU giữa khối Entity Level và Transaction
+  Level (và có sai khác chính tả nhỏ giữa 2 bản, vd "hiệu lựccủa" thiếu dấu cách ở Entity nhưng
+  "hiệu lực của" đúng dấu cách ở Transaction) — không thể dựa vào tên cột để phân biệt ổn định.
+  ⚠️ Nếu người phụ trách dữ liệu chèn/xoá/đổi thứ tự cột trên SharePoint, mapping vị trí này sẽ đọc
+  SAI mà không báo lỗi — phải đối chiếu lại thủ công với sheet thật khi thấy số liệu bất thường.
+- Sheet có dòng lặp y hệt (1 rủi ro có cả kiểm soát Entity lẫn Transaction sẽ chiếm 2 dòng thô) —
+  `get_rcm_risks()` tự `drop_duplicates` trên `(company_id, vc2_id, risk_desc, risk_category_id)`.
+- **Trang Chuỗi giá trị cộng dồn** số đếm rủi ro của mỗi hoạt động = rủi ro Sheet1 + rủi ro 7_RCM
+  (đã chốt với người dùng), nhưng **luôn ghi rõ tách nguồn** ở mọi nơi hiển thị số liệu (KPI đầu
+  trang, card "Chi tiết hoạt động") — không bao giờ gộp thành 1 số duy nhất mà không chú thích, vì
+  2 hệ risk_id khác nhau hoàn toàn, gộp im lặng sẽ gây hiểu lầm khi so sánh với dữ liệu gốc.
+- Hộp thoại `risk_dialog.show_activity_risks()` nhận thêm tham số `rcm_risks` (tùy chọn) — hiện 1
+  mục RIÊNG "🗂️ Từ Ma trận kiểm soát rủi ro (7_RCM)" bên dưới mục "📋 Từ Sheet1" (mục Sheet1 hiện
+  LUÔN khi có `rcm_risks`, kể cả khi rỗng — ghi rõ "Chưa có rủi ro nào trong Sheet1..." — để người
+  dùng không hiểu lầm 2 nguồn là một). Mỗi rủi ro 7_RCM gắn nhãn công ty + mã danh mục ngay trên
+  tiêu đề, không trộn với rủi ro Sheet1.
+- **Hiệu lực/hiệu quả kiểm soát:** mỗi rủi ro 7_RCM có 2 nút bấm-mở-rộng (`st.expander`) "Entity
+  Level" / "Transaction Level", tiền tố bằng 1 emoji màu (`_EFF_EMOJI` trong `risk_dialog.py`) theo
+  `_rcm_effectiveness_key(valid, effective)`: Có hiệu lực + Có hiệu quả → 🟢; Có hiệu lực + Không
+  hiệu quả → 🟠; Không hiệu lực + Không hiệu quả → 🔴; tổ hợp khác (vd Không hiệu lực nhưng Có hiệu
+  quả) hoặc thiếu dữ liệu → ⚪ (xám, KHÔNG đoán, đã chốt với người dùng). Bấm vào mới hiện chi tiết
+  6 trường tương ứng (Entity: mô tả kiểm soát/đầu mối/cấp phê duyệt/độ bao phủ/mức định lượng/tần
+  suất cập nhật — cột I-N; Transaction: mô tả kiểm soát/người soát xét/người phê duyệt/tần suất
+  thực hiện/hình thức/nền tảng — cột R-W), không hiện sẵn để hộp thoại không quá dài.
