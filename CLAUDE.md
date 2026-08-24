@@ -386,3 +386,23 @@ bất thường.
   6 trường tương ứng (Entity: mô tả kiểm soát/đầu mối/cấp phê duyệt/độ bao phủ/mức định lượng/tần
   suất cập nhật — cột I-N; Transaction: mô tả kiểm soát/người soát xét/người phê duyệt/tần suất
   thực hiện/hình thức/nền tảng — cột R-W), không hiện sẵn để hộp thoại không quá dài.
+- **Màu ô mã hoạt động** (vd `IL-006`) trên danh sách hoạt động trong khối: `risk_dialog.
+  rcm_control_health_color(vc2_id, rcm_risks)` đếm số đánh giá **"đỏ"** (Không hiệu lực VÀ Không
+  hiệu quả — cả Entity lẫn Transaction Level, mỗi cấp tính riêng 1 lần) trên TOÀN BỘ rủi ro 7_RCM
+  gắn với hoạt động đó, rồi so ngưỡng: ≥7 đỏ → đỏ; ≥5 → cam; ≥3 → **vàng** (đã chốt: đếm theo SỐ
+  KIỂM SOÁT không hiệu lực/không hiệu quả, KHÔNG đếm theo số rủi ro; chỉ tính "đỏ" — combo cam
+  (1/2 tiêu chí đạt) KHÔNG tính vào đếm); còn lại (kể cả 0 đỏ) → xanh. Hoạt động KHÔNG có dữ liệu
+  7_RCM → trả về `None`, giữ nguyên màu mono trung tính như cũ (đã chốt: không gộp với "chưa xác
+  định" vì 2 ý nghĩa khác nhau — không có dữ liệu ≠ có dữ liệu nhưng combo lạ).
+- Thêm khoá `"yellow"` vào `risk_palette()` (`src/theme.py`) — **tách riêng** với `"low"` (cam)
+  vì phục vụ thang 4 mức (xanh/vàng/cam/đỏ) của ngưỡng trên, khác ý nghĩa với RAG 3 mức thông
+  thường (none/low/high) đang dùng ở những chỗ khác trong app.
+- **Màu KHỐI chức năng** (9 box "HẬU CẦN ĐẦU VÀO", "BÁN HÀNG"...) trên biểu đồ cấp 1: `risk_dialog.
+  rcm_block_health_color(vc1_id, rcm_risks)` — CÙNG quy tắc/ngưỡng như màu ô mã hoạt động ở trên,
+  chỉ khác PHẠM VI đếm: tổng số đánh giá "đỏ" trên **TẤT CẢ hoạt động trong khối** đó (không phải
+  từng hoạt động riêng lẻ) — đã chốt với người dùng mở rộng quy tắc cấp hoạt động lên cấp khối.
+  `pages/2_Chuoi_gia_tri.py` tính `block_colors: dict[vc1_id, hex]` rồi truyền vào
+  `viz.value_chain.build_value_chain_blocks(vc2, block_colors=...)` — khối không có trong dict
+  (chưa có hoạt động nào trong khối có dữ liệu 7_RCM) giữ màu trung tính như thiết kế gốc (xem Mục
+  11.3 — quyết định "khối trung tính" ban đầu nay chỉ áp dụng khi thật sự KHÔNG có dữ liệu, không
+  còn tuyệt đối cho mọi trường hợp).

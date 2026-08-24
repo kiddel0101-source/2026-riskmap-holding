@@ -1,8 +1,11 @@
 import streamlit as st
 
-# Bang mau rui ro rieng cho tung theme: ban dark sang hon de doc duoc tren nen toi
-RISK_PALETTE_LIGHT = {"none": "#2E7D5B", "low": "#B7860B", "high": "#C0392B", "grey": "#6B7280"}
-RISK_PALETTE_DARK = {"none": "#5BBE90", "low": "#E0B85B", "high": "#E8705E", "grey": "#9CA3AF"}
+# Bang mau rui ro rieng cho tung theme: ban dark sang hon de doc duoc tren nen toi.
+# "yellow" rieng voi "low" (cam) - dung cho thang 4 muc do (xanh/vang/cam/do) cua nguong
+# so kiem soat khong hieu luc/khong hieu qua 7_RCM (xem CLAUDE.md Muc 11.4), KHONG dung chung
+# voi "low" vi 2 y nghia khac nhau (RAG 3 muc vs nguong 4 muc).
+RISK_PALETTE_LIGHT = {"none": "#2E7D5B", "low": "#B7860B", "high": "#C0392B", "grey": "#6B7280", "yellow": "#C9A400"}
+RISK_PALETTE_DARK = {"none": "#5BBE90", "low": "#E0B85B", "high": "#E8705E", "grey": "#9CA3AF", "yellow": "#E8D34D"}
 
 
 def is_dark() -> bool:

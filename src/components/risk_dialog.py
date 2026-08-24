@@ -30,6 +30,54 @@ def _rcm_effectiveness_key(valid, effective) -> str:
     return "grey"
 
 
+def rcm_control_health_color(vc2_id: str, rcm_risks: pd.DataFrame) -> str | None:
+    """Mau gop cho O MA HOAT DONG (vd "IL-006") tren trang Chuoi gia tri, theo NGUONG SO
+    KIEM SOAT "do" (Khong hieu luc VA Khong hieu qua - CA Entity lan Transaction Level, moi
+    cap tinh rieng 1 lan) tren toan bo rui ro 7_RCM gan voi hoat dong do (da chot voi nguoi
+    dung, KHONG dem theo so luong rui ro, KHONG tinh cam/vang/xanh vao dem - chi dem do):
+    >=7 do -> do; >=5 do -> cam; >=3 do -> vang; con lai (ke ca 0 do) -> xanh.
+
+    Tra ve None (khong to mau, giu trung tinh nhu hien tai) neu hoat dong khong co dong 7_RCM
+    nao - da chot voi nguoi dung KHONG coi "khong co du lieu" giong "chua xac dinh" (mau ghi
+    cua 1 cap kiem soat cu the, y nghia khac han)."""
+    rows = rcm_risks[rcm_risks["vc2_id"] == vc2_id]
+    if rows.empty:
+        return None
+    return _color_by_red_count(_count_red(rows))
+
+
+def rcm_block_health_color(vc1_id: str, rcm_risks: pd.DataFrame) -> str | None:
+    """Nhu rcm_control_health_color nhung o CAP KHOI (vd "MS") - dem tong so danh gia "do"
+    tren TAT CA hoat dong trong khoi do (khong phai tung hoat dong rieng le), cung nguong
+    7/5/3 - da chot voi nguoi dung dung lai chinh quy tac cap hoat dong, chi doi pham vi dem.
+    Tra ve None neu khoi khong co hoat dong nao co du lieu 7_RCM."""
+    rows = rcm_risks[rcm_risks["vc1_id"] == vc1_id]
+    if rows.empty:
+        return None
+    return _color_by_red_count(_count_red(rows))
+
+
+def _count_red(rows: pd.DataFrame) -> int:
+    red_count = 0
+    for _, r in rows.iterrows():
+        if _rcm_effectiveness_key(r.get("ent_valid"), r.get("ent_effective")) == "high":
+            red_count += 1
+        if _rcm_effectiveness_key(r.get("tx_valid"), r.get("tx_effective")) == "high":
+            red_count += 1
+    return red_count
+
+
+def _color_by_red_count(red_count: int) -> str:
+    palette = risk_palette()
+    if red_count >= 7:
+        return palette["high"]
+    if red_count >= 5:
+        return palette["low"]
+    if red_count >= 3:
+        return palette["yellow"]
+    return palette["none"]
+
+
 def _score_parts(row: pd.Series, prefix: str) -> tuple[str, str | None]:
     """Tach rieng so diem (ngan, hien to) va chi tiet KN/TD (dai, hien nho) - dung
     st.metric truc tiep voi ca cau "20 (KN 5 x TD 4)" se bi cat chu vi qua dai."""

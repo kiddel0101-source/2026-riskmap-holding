@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.components.risk_dialog import show_activity_risks
+from src.components.risk_dialog import rcm_block_health_color, rcm_control_health_color, show_activity_risks
 from src.data import loader, repository
 from src.theme import chart_config, nz, risk_palette
 from src.viz.value_chain import build_risk_by_function_bar_v2, build_value_chain_blocks
@@ -9,9 +9,10 @@ st.title("⛓️ Chuỗi giá trị")
 st.caption(
     "Mô hình Chuỗi giá trị Porter chuẩn — **9 khối, dùng chung cho toàn Tập đoàn** (nguồn: Sheet1), "
     "không phân theo công ty. Hàng trên là 5 khối **hoạt động chính**, hàng dưới là 4 khối "
-    "**hoạt động hỗ trợ**. Mỗi khối là 1 ô trung tính — bấm vào để xem danh sách hoạt động "
-    "(sub-value chain) bên trong, rồi bấm tiếp để xem chi tiết rủi ro — gộp từ **Sheet1** và "
-    "**Ma trận kiểm soát rủi ro (7_RCM)**, luôn ghi rõ nguồn cho từng rủi ro."
+    "**hoạt động hỗ trợ**. Khối có màu (xanh/vàng/cam/đỏ) nếu có dữ liệu 7_RCM đánh giá kiểm "
+    "soát — bấm vào để xem danh sách hoạt động (sub-value chain) bên trong, rồi bấm tiếp để "
+    "xem chi tiết rủi ro — gộp từ **Sheet1** và **Ma trận kiểm soát rủi ro (7_RCM)**, luôn ghi "
+    "rõ nguồn cho từng rủi ro."
 )
 
 try:
@@ -61,13 +62,29 @@ if not combined_counts.empty:
         st.markdown("**Điểm cần chú ý**")
         st.markdown(f"⚠️ Khối **{top_fn}** tập trung nhiều rủi ro nhất ({top_n} rủi ro, gộp Sheet1 + 7_RCM) — điểm nóng cần ưu tiên rà soát.")
 
-fig = build_value_chain_blocks(vc2)
+block_colors = {}
+for vc1_id in nodes["vc1_id"].dropna().unique():
+    color = rcm_block_health_color(vc1_id, rcm)
+    if color:
+        block_colors[vc1_id] = color
+
+fig = build_value_chain_blocks(vc2, block_colors=block_colors)
 fig.update_layout(height=300)
 event = st.plotly_chart(
     fig, width="stretch", config=chart_config(),
     key="vc2_blocks", on_select="rerun", selection_mode="points",
 )
+palette = risk_palette()
 st.caption("💡 Bấm vào một khối để xem danh sách hoạt động (sub-value chain) bên trong.")
+st.caption(
+    "Màu khối (nếu có) theo tổng số kiểm soát 7_RCM không hiệu lực & không hiệu quả trong "
+    "TẤT CẢ hoạt động của khối: "
+    f"<span style='color:{palette['none']}'>■ xanh</span> &lt;3 · "
+    f"<span style='color:{palette['yellow']}'>■ vàng</span> ≥3 · "
+    f"<span style='color:{palette['low']}'>■ cam</span> ≥5 · "
+    f"<span style='color:{palette['high']}'>■ đỏ</span> ≥7 · khối chưa có dữ liệu 7_RCM giữ màu trung tính.",
+    unsafe_allow_html=True,
+)
 
 clicked_points = (event or {}).get("selection", {}).get("points", [])
 if clicked_points:
@@ -85,6 +102,14 @@ if selected_block:
         if head_r.button("✕ Đóng", key="close_block_panel"):
             st.session_state["_vc2_selected_block"] = None
             st.rerun()
+        st.caption(
+            "Màu mã hoạt động (nếu có) theo số kiểm soát 7_RCM không hiệu lực & không hiệu quả: "
+            f"<span style='color:{palette['none']}'>■ xanh</span> &lt;3 · "
+            f"<span style='color:{palette['yellow']}'>■ vàng</span> ≥3 · "
+            f"<span style='color:{palette['low']}'>■ cam</span> ≥5 · "
+            f"<span style='color:{palette['high']}'>■ đỏ</span> ≥7",
+            unsafe_allow_html=True,
+        )
 
         block_rows = nodes[(nodes["vc1_name"] == selected_block) & (nodes["category"].isin(categories))]
         if block_rows.empty:
@@ -94,7 +119,11 @@ if selected_block:
             color = palette["none"] if count == 0 else (palette["low"] if count == 1 else palette["high"])
             with st.container(border=True):
                 c1, c2, c3, c4 = st.columns([1.1, 3.2, 1, 1.4])
-                c1.markdown(f"`{r['vc2_id']}`")
+                code_color = rcm_control_health_color(r["vc2_id"], rcm)
+                if code_color:
+                    c1.markdown(f"<code style='color:{code_color};font-weight:700'>{r['vc2_id']}</code>", unsafe_allow_html=True)
+                else:
+                    c1.markdown(f"`{r['vc2_id']}`")
                 c2.write(nz(r.get("vc2_name")))
                 c3.caption(nz(r.get("category")))
                 label = f"{count} rủi ro" if count else "chưa có rủi ro"

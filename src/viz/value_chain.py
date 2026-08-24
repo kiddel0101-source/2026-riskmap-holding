@@ -154,14 +154,18 @@ def _sort_ids_v2(ids: list[str]) -> list[str]:
     return sorted(ids, key=lambda code: order_index.get(code, len(_ID_ORDER_V2)))
 
 
-def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
-    """Ban do CAP 1 (rut gon) cho trang Chuoi gia tri: moi khoi chuc nang la 1 box duy nhat,
-    TRUNG TINH khong to mau theo rui ro (da chot voi nguoi dung - mau rui ro chi hien o cap
-    hoat dong sau khi bung ra). 2 hang dung khung Porter: 5 khoi CHINH o tren, 4 khoi HO TRO
-    o duoi. Bam vao 1 box (customdata = ten khoi) de trang boc danh sach hoat dong
-    (sub-value chain) trong khoi do ngay ben duoi - KHONG dung hop thoai (da chot voi nguoi
-    dung). Luon co du 9 khoi, khong loc theo "Nhóm hoạt động" (bo loc do chi anh huong danh
-    sach hoat dong hien ra sau khi bam, khong an bot khoi)."""
+def build_value_chain_blocks(vc2: pd.DataFrame, block_colors: dict[str, str] | None = None) -> go.Figure:
+    """Ban do CAP 1 (rut gon) cho trang Chuoi gia tri: moi khoi chuc nang la 1 box duy nhat.
+    2 hang dung khung Porter: 5 khoi CHINH o tren, 4 khoi HO TRO o duoi. Bam vao 1 box
+    (customdata = ten khoi) de trang boc danh sach hoat dong (sub-value chain) trong khoi do
+    ngay ben duoi - KHONG dung hop thoai (da chot voi nguoi dung). Luon co du 9 khoi, khong
+    loc theo "Nhóm hoạt động" (bo loc do chi anh huong danh sach hoat dong hien ra sau khi
+    bam, khong an bot khoi).
+
+    `block_colors` (tuy chon, xem CLAUDE.md Muc 11.4) la dict {vc1_id: hex_color} tu
+    `risk_dialog.rcm_block_health_color()` - khoi KHONG co trong dict (chua co du lieu 7_RCM
+    nao) giu mau TRUNG TINH nhu truoc; da chot voi nguoi dung mo rong mau nguong kiem soat tu
+    cap hoat dong len ca cap khoi."""
     palette = risk_palette()
     neutral = palette["grey"]
     nodes = vc2.drop_duplicates(subset=["vc2_id"])
@@ -204,20 +208,21 @@ def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
             fn = id_to_name.get(code, code)
             cx = (ci + 0.5) * col_w
             box_w = col_w * 0.86
+            color = (block_colors or {}).get(code) or neutral
             fig.add_shape(
                 type="rect", x0=cx - box_w / 2, x1=cx + box_w / 2, y0=cy - box_h / 2, y1=cy + box_h / 2,
-                line=dict(color=neutral, width=1.8), fillcolor=hex_to_rgba(neutral, 0.09), layer="below",
+                line=dict(color=color, width=1.8), fillcolor=hex_to_rgba(color, 0.10), layer="below",
             )
             label_wrap_width = max(12, min(24, round(box_w * 150)))
             header = wrap_text(fn.upper(), width=label_wrap_width, max_lines=2)
             fig.add_annotation(
                 x=cx, y=cy + box_h * 0.18, xref="x", yref="y", text=f"<b>{header}</b>",
-                showarrow=False, font=dict(size=11, color=neutral), align="center",
+                showarrow=False, font=dict(size=11, color=color), align="center",
             )
             n_act = int(counts_by_id.get(code, 0))
             fig.add_annotation(
                 x=cx, y=cy - box_h * 0.32, xref="x", yref="y", text=f"{n_act} hoạt động",
-                showarrow=False, font=dict(size=9.5, color=neutral), opacity=0.85,
+                showarrow=False, font=dict(size=9.5, color=color), opacity=0.85,
             )
 
             hov_x.append(cx)
