@@ -133,26 +133,25 @@ def build_value_chain_map(
     return fig
 
 
-# Thu tu 9 khoi Porter day du, khop dung nhan tieng Viet trong Sheet1 (get_value_chain_v2).
-# Rieng cho trang Chuoi gia tri (Phan 3) - KHONG dung chung voi _FUNCTION_ORDER/build_value_chain_map
-# o tren, vi 2 nguon du lieu dung 2 bo nhan khac nhau (Sheet1 la tieng Viet, 2_Value_Chain_Master
-# la tieng Anh) va cac trang khac (Trang chu, Su kien rui ro) van dung build_value_chain_map cu.
-_FUNCTION_ORDER_V2 = [
-    "Hậu cần đầu vào", "Vận hành / Sản xuất", "Hậu cần đầu ra", "Marketing & Bán hàng",
-    "Dịch vụ sau bán hàng", "Thu mua", "Phát triển công nghệ",
-    "Cơ sở hạ tầng doanh nghiệp", "Quản trị nguồn nhân lực",
-]
-# 5 khoi CHINH (Primary) + 4 khoi HO TRO (Support) theo dung khung Porter - day la phan
-# loai o CAP KHOI, khac voi cot "category" (Phan loai Chinh/Ho tro) trong tung dong du lieu
-# von la phan loai o CAP HOAT DONG (vd hoat dong "PR-003" thuoc khoi Ho tro "Thu mua" nhung
-# ban than no van co the duoc gan category="Hỗ trợ" trong du lieu - 2 truc doc lap nhau).
-_PRIMARY_FUNCTIONS_V2 = _FUNCTION_ORDER_V2[:5]
-_SUPPORT_FUNCTIONS_V2 = _FUNCTION_ORDER_V2[5:]
+# Thu tu 9 khoi Porter day du cho trang Chuoi gia tri (Phan 3), phan loai theo MA khoi
+# (vc1_id) chu KHONG theo ten hien thi (vc1_name) - ten hien thi tren SharePoint da bi doi
+# it nhat 3 lan ("Vận hành / Sản xuất" -> "Sản xuất", "Marketing & Bán hàng" -> "Bán hàng",
+# "Thu mua" -> "Mua hàng"...) trong khi ma (IL/OP/OL/MS/SV/PR/TD/FI/HR, cung la tien to cua
+# vc2_id nhu "OP-001") on dinh qua tat ca cac lan doi ten. Rieng cho Phan 3 - KHONG dung
+# chung voi _FUNCTION_ORDER/build_value_chain_map o tren (nguon 2_Value_Chain_Master khac,
+# cac trang Trang chu/Su kien rui ro van dung ham cu, khong bi anh huong).
+_ID_ORDER_V2 = ["IL", "OP", "OL", "MS", "SV", "PR", "TD", "FI", "HR"]
+# 5 ma CHINH (Primary) + 4 ma HO TRO (Support) theo dung khung Porter - day la phan loai o
+# CAP KHOI, khac voi cot "category" (Phan loai Chinh/Ho tro) trong tung dong du lieu von la
+# phan loai o CAP HOAT DONG (vd hoat dong "PR-003" thuoc khoi Ho tro "Mua hàng" nhung ban
+# than no van co the duoc gan category="Hỗ trợ" trong du lieu - 2 truc doc lap nhau).
+_PRIMARY_IDS_V2 = set(_ID_ORDER_V2[:5])
+_SUPPORT_IDS_V2 = set(_ID_ORDER_V2[5:])
 
 
-def _sort_functions_v2(functions: list[str]) -> list[str]:
-    order_index = {name.lower(): i for i, name in enumerate(_FUNCTION_ORDER_V2)}
-    return sorted(functions, key=lambda fn: order_index.get(fn.lower(), len(_FUNCTION_ORDER_V2)))
+def _sort_ids_v2(ids: list[str]) -> list[str]:
+    order_index = {code: i for i, code in enumerate(_ID_ORDER_V2)}
+    return sorted(ids, key=lambda code: order_index.get(code, len(_ID_ORDER_V2)))
 
 
 def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
@@ -166,16 +165,23 @@ def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
     palette = risk_palette()
     neutral = palette["grey"]
     nodes = vc2.drop_duplicates(subset=["vc2_id"])
-    counts_by_fn = nodes.groupby("vc1_name").size()
+    counts_by_id = nodes.groupby("vc1_id").size()
+    # 1 vc1_id ung dung 1 vc1_name trong du lieu hien tai - lay ten hien thi de ve, nhung
+    # phan loai/sap xep van dua theo ma (xem ghi chu o _ID_ORDER_V2).
+    id_to_name = dict(
+        nodes.drop_duplicates(subset=["vc1_id"])[["vc1_id", "vc1_name"]].itertuples(index=False)
+    )
 
-    all_fns = list(dict.fromkeys(nodes["vc1_name"].fillna("Khác")))
-    primary_fns = _sort_functions_v2([f for f in all_fns if f in _PRIMARY_FUNCTIONS_V2])
-    support_fns = _sort_functions_v2([f for f in all_fns if f not in primary_fns])
+    all_ids = list(dict.fromkeys(nodes["vc1_id"].fillna("KHÁC")))
+    primary_ids = _sort_ids_v2([i for i in all_ids if i in _PRIMARY_IDS_V2])
+    # Bat ky ma nao khong khop danh sach Chinh (gom ca "KHÁC" du phong) deu xep vao hang Ho
+    # tro, tranh bi RUNG mat khoi bieu do neu du lieu nguon phat sinh ma khoi moi.
+    support_ids = _sort_ids_v2([i for i in all_ids if i not in primary_ids])
     bands = []
-    if primary_fns:
-        bands.append(("HOẠT ĐỘNG CHÍNH", primary_fns))
-    if support_fns:
-        bands.append(("HOẠT ĐỘNG HỖ TRỢ", support_fns))
+    if primary_ids:
+        bands.append(("HOẠT ĐỘNG CHÍNH", primary_ids))
+    if support_ids:
+        bands.append(("HOẠT ĐỘNG HỖ TRỢ", support_ids))
 
     GAP = 0.16
     band_h = (1.0 - GAP * (len(bands) - 1)) / len(bands) if bands else 1.0
@@ -185,8 +191,8 @@ def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
     hov_x, hov_y, hov_text, hov_ids = [], [], [], []
 
     band_y1 = 1.0
-    for band_label, fns in bands:
-        n_cols = len(fns)
+    for band_label, ids in bands:
+        n_cols = len(ids)
         col_w = 1.0 / n_cols
         cy = band_y1 - band_h / 2
         if len(bands) > 1:
@@ -194,7 +200,8 @@ def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
                 x=0, y=band_y1 + 0.03, xref="x", yref="y", text=f"<b>{band_label}</b>",
                 showarrow=False, font=dict(size=11, color=neutral), opacity=0.95, xanchor="left",
             )
-        for ci, fn in enumerate(fns):
+        for ci, code in enumerate(ids):
+            fn = id_to_name.get(code, code)
             cx = (ci + 0.5) * col_w
             box_w = col_w * 0.86
             fig.add_shape(
@@ -207,7 +214,7 @@ def build_value_chain_blocks(vc2: pd.DataFrame) -> go.Figure:
                 x=cx, y=cy + box_h * 0.18, xref="x", yref="y", text=f"<b>{header}</b>",
                 showarrow=False, font=dict(size=11, color=neutral), align="center",
             )
-            n_act = int(counts_by_fn.get(fn, 0))
+            n_act = int(counts_by_id.get(code, 0))
             fig.add_annotation(
                 x=cx, y=cy - box_h * 0.32, xref="x", yref="y", text=f"{n_act} hoạt động",
                 showarrow=False, font=dict(size=9.5, color=neutral), opacity=0.85,

@@ -325,10 +325,21 @@ workbook, code không đọc nữa).
   Đừng bao giờ so sánh trực tiếp giữa 2 hệ này.
 - **Trang hiện hiển thị 2 CẤP** (đã chốt với người dùng): `viz.value_chain.build_value_chain_blocks()`
   vẽ **cấp 1** — mỗi khối chức năng là 1 box TRUNG TÍNH (không tô màu rủi ro), 2 hàng theo khung
-  Porter (5 khối Chính/4 khối Hỗ trợ, dùng `_PRIMARY_FUNCTIONS_V2`/`_SUPPORT_FUNCTIONS_V2`). Bấm 1
+  Porter (5 khối Chính/4 khối Hỗ trợ). Bấm 1
   khối → **mở rộng ngay trên trang** (không dùng hộp thoại) danh sách hoạt động (sub-value chain,
   cấp 2) trong khối đó, mỗi hoạt động có chip màu số rủi ro. Bấm nút "Xem rủi ro" trên 1 hoạt động
   mới mở hộp thoại `risk_dialog.show_activity_risks()` (cấp 3, rút gọn — vì `Sheet1` không có điểm
   số/RAG/chủ trì/kiểm soát như Risk Register, chỉ có `Risk_ID`, tên rủi ro, `Problem`, `Details`).
   Hàm `build_value_chain_map_v2()` (bản vẽ hết 66 hoạt động trong 1 lần, không thu gọn theo khối)
   đã bị THAY THẾ hoàn toàn, không còn trong code.
+- ⚠️ **Lần đổi tên thứ 3 trên SharePoint (đã gặp thật, đã sửa):** giá trị hiển thị của `vc1_name`
+  bị đổi ("Vận hành / Sản xuất"→"Sản xuất", "Marketing & Bán hàng"→"Bán hàng", "Thu mua"→"Mua
+  hàng"), khiến logic phân loại Chính/Hỗ trợ cũ (so khớp theo TÊN, hằng `_PRIMARY_FUNCTIONS_V2`/
+  `_SUPPORT_FUNCTIONS_V2`) không nhận ra "Sản xuất"/"Bán hàng" là hoạt động Chính nữa → 2 khối này
+  bị xếp nhầm xuống hàng Hỗ trợ trên giao diện. Đã sửa tận gốc: phân loại + sắp xếp nay dựa vào
+  **`vc1_id`** (mã ổn định IL/OP/OL/MS/SV/PR/TD/FI/HR — cũng là tiền tố của `vc2_id` như "OP-001",
+  đã qua 3 lần đổi tên vẫn không đổi) thay vì `vc1_name` — hằng số đổi tên thành `_ID_ORDER_V2`/
+  `_PRIMARY_IDS_V2`/`_SUPPORT_IDS_V2`, tên hiển thị chỉ tra cứu qua `id_to_name` lúc vẽ. Rút kinh
+  nghiệm chung: **bất cứ đâu cần so khớp/phân loại theo dữ liệu Sheet1, luôn ưu tiên khớp theo mã
+  ID ổn định, không khớp theo tên hiển thị** — tên hiển thị trên sheet này đã đổi nhiều lần và sẽ
+  còn đổi tiếp.
