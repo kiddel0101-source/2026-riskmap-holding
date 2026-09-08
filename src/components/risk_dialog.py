@@ -138,59 +138,6 @@ def show_risk_profile(risks: pd.DataFrame, subject_label: str, subject_sub: str 
     _dialog()
 
 
-def show_activity_risks(
-    activity_risks: pd.DataFrame, subject_label: str, subject_sub: str = "",
-    rcm_risks: pd.DataFrame | None = None,
-) -> None:
-    """Hop thoai RUT GON cho 1 hoat dong trong mo hinh Chuoi gia tri Sheet1 (Phan 3) - khac
-    show_risk_profile() vi Sheet1 khong co diem so/RAG/chu tri/kiem soat nhu Risk Register,
-    chi co ma rui ro + ten + Problem/Details. `activity_risks` la cac dong Sheet1 (tu
-    get_value_chain_v2) da loc theo 1 vc2_id.
-
-    ⚠️ Truoc day co tham so `edges` de hien "co the kich hoat" (tu sheet Risk_Linkages) - sheet
-    do da bi xoa khoi workbook nguon, khong co sheet thay the, da bo tham so nay (xem
-    CLAUDE.md Muc 11.5).
-
-    `rcm_risks` (tuy chon, xem CLAUDE.md Muc 11.4) la cac dong tu get_rcm_risks() da loc theo
-    1 vc2_id - nguon rui ro THU 3, hien o 1 muc RIENG ben duoi muc Sheet1, LUON hien (ke ca khi
-    Sheet1 rong) vi 2 nguon la doc lap. Moi rui ro RCM co 2 nut bam-mo-rong "Entity Level" /
-    "Transaction Level" (mau emoji theo _rcm_effectiveness_key), bam vao moi hien chi tiet kiem
-    soat tuong ung (cot I-N / R-W cua sheet 7_RCM) - khong hien san de tranh hop thoai qua dai."""
-
-    @st.dialog(subject_label)
-    def _dialog() -> None:
-        if subject_sub:
-            st.caption(subject_sub)
-
-        risk_rows = activity_risks.dropna(subset=["risk_id"])
-        has_rcm = rcm_risks is not None and not rcm_risks.empty
-
-        if risk_rows.empty and not has_rcm:
-            st.info("Chưa có rủi ro nào gắn với hoạt động này.")
-            return
-
-        if has_rcm:
-            st.markdown("**📋 Từ Sheet1**")
-        if risk_rows.empty:
-            st.caption("Chưa có rủi ro nào trong Sheet1 gắn với hoạt động này.")
-        for _, r in risk_rows.iterrows():
-            with st.container(border=True):
-                st.markdown(f"**{r['risk_id']}** — {nz(r.get('risk_name'))}")
-                if pd.notna(r.get("problem")):
-                    st.caption(f"Vấn đề: {r['problem']}")
-                if pd.notna(r.get("details")):
-                    st.write(nz(r.get("details")))
-
-        if has_rcm:
-            st.divider()
-            st.markdown("**🗂️ Từ Ma trận kiểm soát rủi ro (7_RCM)**")
-            _rcm_legend()
-            for _, r in rcm_risks.iterrows():
-                _render_rcm_card(r)
-
-    _dialog()
-
-
 def _rcm_legend() -> None:
     st.caption(
         "🟢 Có hiệu lực & hiệu quả · 🟠 Có hiệu lực, không hiệu quả · "
@@ -243,9 +190,9 @@ def show_group_rcm_risks(rcm_risks: pd.DataFrame, subject_label: str, subject_su
     """Hop thoai hien TOAN BO rui ro CADIVI_RCM cua 1 nhom nho (VC2, vd "OP-02") - dung khi bam
     nut "Xem rui ro va kiem soat" tren luoi nhom trong pages/2_Chuoi_gia_tri.py.
 
-    Khac show_activity_risks(): KHONG co muc "Tu Sheet1" - o cap nhom KHONG co du lieu Sheet1
-    truc tiep (Sheet1 chi gan toi cap hoat dong cu the VC3), chi hien danh sach rui ro CADIVI_RCM
-    + chi tiet kiem soat Entity/Transaction Level, dung lai _render_rcm_card() y het."""
+    Day la hop thoai DUY NHAT hien chi tiet rui ro tren trang Chuoi gia tri (rui ro Sheet1
+    2_VC_Master khong con dung nua - xem CLAUDE.md Muc 11.9), chi hien danh sach rui ro
+    CADIVI_RCM + chi tiet kiem soat Entity/Transaction Level qua _render_rcm_card()."""
 
     @st.dialog(subject_label)
     def _dialog() -> None:

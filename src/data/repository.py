@@ -85,8 +85,11 @@ def get_value_chain_v2(workbook_bytes: bytes) -> pd.DataFrame:
     ro) da bi xoa khoi workbook nguon, khong co sheet thay the, tinh nang phu thuoc no da bi
     go bo (xem CLAUDE.md Muc 11.5).
 
-    1 dong = 1 (hoat dong, rui ro) - 1 hoat dong (vc2_id) co the lap lai nhieu dong neu co
-    nhieu rui ro gan truc tiep (toi da 3), cot rui ro se rong o cac hoat dong chua co rui ro.
+    ⚠️ Sheet nay co the co cot Risk/Risk_ID/Problem/Details (rui ro ma RSK-xxx gan truc tiep
+    theo hoat dong) nhung app KHONG doc/dung cac cot nay nua - nguoi dung xac nhan du lieu rui
+    ro trong sheet nay khong con dang tin, trang Chuoi gia tri tu Muc 11.9 tro di CHI dung
+    CADIVI_RCM lam nguon rui ro duy nhat (xem CLAUDE.md Muc 11.9). Ham nay chi con tra ve cau
+    truc phan cap VC1/VC2/VC3, khong tra ve rui ro.
 
     ⚠️ Sheet nay dang duoc nguoi phu trach du lieu chinh sua truc tiep tren SharePoint - da
     nhieu lan doi ten cot goc (vd "Chuoi gia tri 1" -> "Value Chain"). Rename map o day chap
@@ -109,8 +112,6 @@ def get_value_chain_v2(workbook_bytes: bytes) -> pd.DataFrame:
     out = df.rename(columns={
         "Chuỗi giá trị 1": "vc1_name", "Value Chain": "vc1_name", "VC1_ID": "vc1_id",
         "Phân loại": "category", "Value chain_3": "vc3_name",
-        "Risk": "risk_name", "Risk_ID": "risk_id",
-        "Problem": "problem", "Details": "details",
     })
     out["vc2_id"] = _first_non_empty_column(df, ["VC3_ID", "VC2_ID"])
     out["vc2_name"] = _first_non_empty_column(df, ["Value Chain L3", "Sub-Value Chain", "Chuỗi giá trị 2"])

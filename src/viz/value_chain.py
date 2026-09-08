@@ -12,18 +12,16 @@ def _risk_color(count: int, palette: dict) -> str:
     return palette["high"]
 
 
-def build_risk_by_function_bar_v2(vc2: pd.DataFrame) -> go.Figure | None:
-    """Nhu build_risk_by_function_bar nhung theo Sheet1 - dem so rui ro DUY NHAT (risk_id)
-    gan truc tiep theo tung khoi vc1_name, khong can join qua Risk Register."""
+def build_risk_by_function_bar_v2(counts_by_name: pd.Series) -> go.Figure | None:
+    """Bieu do so rui ro CADIVI_RCM theo tung khoi chuc nang (vc1_name) - nhan thang 1 Series
+    da dem san (index = ten khoi, value = so rui ro), do trang tu tinh tu rcm.groupby("vc1_id")
+    roi map sang ten. Truoc day ham nay dem theo risk_id cua Sheet1 (2_VC_Master) - da bo vi
+    du lieu rui ro Sheet1 khong con dung nua (xem CLAUDE.md Muc 11.9), nay tach han khoi Sheet1."""
     palette = risk_palette()
-    if vc2.empty:
+    if counts_by_name.empty:
         return None
 
-    with_risk = vc2.dropna(subset=["risk_id"])
-    counts = with_risk.groupby("vc1_name")["risk_id"].nunique() if not with_risk.empty else pd.Series(dtype=int)
-    all_fns = list(dict.fromkeys(vc2["vc1_name"].fillna("Khác")))
-    counts = counts.reindex(all_fns, fill_value=0).sort_values()
-
+    counts = counts_by_name.sort_values()
     colors = [_risk_color(int(v), palette) for v in counts.values]
     fig = go.Figure(
         go.Bar(

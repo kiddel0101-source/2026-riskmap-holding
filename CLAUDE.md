@@ -576,3 +576,44 @@ xuống được hoạt động cụ thể nào, nên trước đây **không c�
   `tx_effective`) — 2 giá trị này TRƯỚC ĐÂY đã đọc sẵn để tính emoji màu qua
   `_rcm_effectiveness_key()` nhưng CHƯA hiện tường minh, chỉ ẩn sau màu 🟢🟠🔴⚪; người dùng yêu
   cầu hiện rõ khi xem mockup, đặt ở cuối danh sách trường mỗi khung.
+
+### 11.9. Bỏ hẳn rủi ro từ `2_VC_Master` (mã `RSK-xxx`) — trang Chuỗi giá trị chỉ còn CADIVI_RCM
+
+Người dùng xác nhận dữ liệu rủi ro nhúng trực tiếp trong sheet `2_VC_Master` (cột `Risk`/
+`Risk_ID`/`Problem`/`Details`, mã `RSK-xxx` — nguồn được mô tả ở Mục 11.3) **không còn đáng tin/
+không còn dùng** — yêu cầu bỏ hẳn. `2_VC_Master` **vẫn là nguồn DUY NHẤT cho cấu trúc phân cấp
+VC1→VC2→VC3** (không đổi) — chỉ bỏ phần dữ liệu rủi ro nhúng trong sheet đó. Từ mục này trở đi,
+**CADIVI_RCM là nguồn rủi ro DUY NHẤT** trên trang Chuỗi giá trị.
+
+- `repository.get_value_chain_v2()` **không còn rename/trả về** `risk_name`/`risk_id`/`problem`/
+  `details` — cột gốc `Risk`/`Risk_ID`/`Problem`/`Details` vẫn còn tồn tại thô trong DataFrame trả
+  về (hàm không lọc bỏ cột, chỉ không alias sang tên snake_case như trước) nhưng KHÔNG có nơi nào
+  trong code còn đọc tới, coi như dữ liệu vết tích — đúng tinh thần đã rút ra ở Mục 11.3 (đừng giả
+  định tên cột cũ biến mất, chỉ ngừng dùng).
+- `risk_dialog.show_activity_risks()` (hộp thoại rút gọn rủi ro Sheet1 + CADIVI_RCM ở cấp hoạt
+  động VC3, xem Mục 11.3/11.4) **đã XOÁ HẲN** — không còn nơi nào gọi sau khi bỏ nút "Xem rủi ro"
+  trên danh sách VC3 (xem dưới). `show_group_rcm_risks()` (Mục 11.8) là hộp thoại chi tiết rủi ro
+  DUY NHẤT còn lại trên trang, chỉ hoạt động ở cấp nhóm nhỏ VC2 (đúng cấp CADIVI_RCM khớp thật).
+- `viz.value_chain.build_risk_by_function_bar_v2()` đổi chữ ký: nhận thẳng 1 `pd.Series` đếm sẵn
+  (index = tên khối, value = số rủi ro CADIVI_RCM) thay vì nhận `vc2` df và tự đếm `risk_id` như
+  trước — trang tính `rcm_by_block = rcm.groupby("vc1_id").size()` rồi `.rename(index=
+  vc1_id_to_name).reindex(...)` trước khi truyền vào, tách hẳn khỏi Sheet1.
+- `pages/2_Chuoi_gia_tri.py` — các thay đổi chính:
+  - KPI "Hoạt động có rủi ro" (Sheet1-based) đổi thành **"Nhóm có rủi ro"** = số `group_id` (VC2)
+    duy nhất có ít nhất 1 dòng CADIVI_RCM / tổng số nhóm. KPI "Tổng rủi ro" chỉ còn đếm CADIVI_RCM
+    (bỏ cộng Sheet1). Câu "Điểm cần chú ý" (hotspot khối nhiều rủi ro nhất) tính thẳng từ
+    `rcm_by_block`, không còn gộp `sheet1_by_block`.
+  - Danh sách "Hoạt động trong nhóm" (VC3, hiện khi bấm 1 ô nhóm VC2) **giữ nguyên** (mã + tên +
+    phân loại, vẫn dùng để xem cấu trúc) nhưng **bỏ cột số rủi ro + nút "Xem rủi ro"** — quyết
+    định giữ danh sách thay vì xoá hẳn vì vẫn có giá trị điều hướng/xem cấu trúc dù không còn rủi
+    ro gắn ở cấp này nữa (đã chốt qua AskUserQuestion).
+  - Khối **"Chi tiết hoạt động"** ở cuối trang (chọn 1 hoạt động + bảng rủi ro Sheet1) **đã bỏ
+    hẳn** — hết ý nghĩa vì CADIVI_RCM không có dữ liệu ở cấp hoạt động cụ thể (VC3). Layout 2 cột
+    (`col_bar, col_detail`) đổi thành 1 cột full-width cho biểu đồ "Rủi ro theo khối chức năng".
+  - Câu info cuối trang ("không vẽ mũi tên luồng quy trình") đổi từ nhắc "Sheet1" sang
+    "2_VC_Master" cho khớp tên sheet hiện tại (không liên quan tới thay đổi rủi ro — chỉ sửa luôn
+    vì phát hiện tên cũ còn sót lại khi test).
+- Rút kinh nghiệm: khi người dùng nói "không dùng gì đến X" (ở đây là rủi ro trong 1 sheet), luôn
+  hỏi rõ PHẠM VI trước khi sửa (Mục nào giữ/mục nào bỏ hẳn) — trang này có tới 5 chỗ phụ thuộc dữ
+  liệu đó (KPI, hotspot, màu/đếm ô khối-nhóm, danh sách VC3, khối chi tiết + biểu đồ cuối trang),
+  không thể đoán 1 câu ngắn gọn ứng với toàn bộ 5 chỗ theo cùng 1 cách.
