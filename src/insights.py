@@ -169,38 +169,6 @@ def supply_chain_alerts(rows: pd.DataFrame, company_id: str, risk_counts: pd.Ser
     return out
 
 
-def value_chain_hotspots(vc: pd.DataFrame, risks: pd.DataFrame, company_id: str) -> list[Insight]:
-    from src.data.repository import risks_exploded_by_vc_node
-
-    out: list[Insight] = []
-    nodes = vc[vc["company_id"] == company_id]
-    if nodes.empty:
-        return out
-
-    exploded = risks_exploded_by_vc_node(risks)
-    joined = exploded.merge(nodes[["vc_node_id", "vc_function"]], on="vc_node_id")
-    covered = joined["vc_node_id"].nunique()
-    if covered < len(nodes):
-        out.append(
-            Insight(
-                "info",
-                f"{len(nodes) - covered}/{len(nodes)} hoạt động chưa gắn rủi ro nào — "
-                "có thể do chưa nhận diện, không hẳn là không có rủi ro.",
-            )
-        )
-
-    if not joined.empty:
-        by_fn = joined.groupby("vc_function")["risk_id"].nunique().sort_values(ascending=False)
-        top_fn, top_n = by_fn.index[0], int(by_fn.iloc[0])
-        out.append(
-            Insight(
-                "warning",
-                f"Khối **{top_fn}** tập trung nhiều rủi ro nhất ({top_n} rủi ro) — điểm nóng cần ưu tiên rà soát.",
-            )
-        )
-    return out
-
-
 def render(items: list[Insight], st, *, max_warnings: int = 3) -> None:
     """Hien thi gon trong 1 khung thay vi nhieu hop canh bao lon chiem het man hinh:
     canh bao quan trong hien truc tiep (toi da `max_warnings`), phan con lai gap vao expander."""

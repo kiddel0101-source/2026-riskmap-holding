@@ -30,28 +30,27 @@ def _rcm_effectiveness_key(valid, effective) -> str:
     return "grey"
 
 
-def rcm_control_health_color(vc2_id: str, rcm_risks: pd.DataFrame) -> str | None:
-    """Mau gop cho O MA HOAT DONG (vd "IL-006") tren trang Chuoi gia tri, theo NGUONG SO
-    KIEM SOAT "do" (Khong hieu luc VA Khong hieu qua - CA Entity lan Transaction Level, moi
-    cap tinh rieng 1 lan) tren toan bo rui ro 7_RCM gan voi hoat dong do (da chot voi nguoi
-    dung, KHONG dem theo so luong rui ro, KHONG tinh cam/vang/xanh vao dem - chi dem do):
-    >=7 do -> do; >=5 do -> cam; >=3 do -> vang; con lai (ke ca 0 do) -> xanh.
+def rcm_block_health_color(vc1_id: str, rcm_risks: pd.DataFrame) -> str | None:
+    """Mau gop cho 1 KHOI chuc nang (vd "MS") tren trang Chuoi gia tri, theo NGUONG SO KIEM
+    SOAT "do" (Khong hieu luc VA Khong hieu qua - ca Entity lan Transaction Level, moi cap
+    tinh rieng 1 lan) tren toan bo rui ro CADIVI_RCM gan voi khoi do (TAT CA nhom nho con
+    trong khoi, khong phai tung nhom rieng le - xem `rcm_group_health_color` cho cap nho hon),
+    KHONG dem theo so luong rui ro, chi dem do: >=7 do -> do; >=5 do -> cam; >=3 do -> vang;
+    con lai (ke ca 0 do) -> xanh.
 
-    Tra ve None (khong to mau, giu trung tinh nhu hien tai) neu hoat dong khong co dong 7_RCM
-    nao - da chot voi nguoi dung KHONG coi "khong co du lieu" giong "chua xac dinh" (mau ghi
-    cua 1 cap kiem soat cu the, y nghia khac han)."""
-    rows = rcm_risks[rcm_risks["vc2_id"] == vc2_id]
+    Tra ve None neu khoi khong co hoat dong nao co du lieu CADIVI_RCM."""
+    rows = rcm_risks[rcm_risks["vc1_id"] == vc1_id]
     if rows.empty:
         return None
     return _color_by_red_count(_count_red(rows))
 
 
-def rcm_block_health_color(vc1_id: str, rcm_risks: pd.DataFrame) -> str | None:
-    """Nhu rcm_control_health_color nhung o CAP KHOI (vd "MS") - dem tong so danh gia "do"
-    tren TAT CA hoat dong trong khoi do (khong phai tung hoat dong rieng le), cung nguong
-    7/5/3 - da chot voi nguoi dung dung lai chinh quy tac cap hoat dong, chi doi pham vi dem.
-    Tra ve None neu khoi khong co hoat dong nao co du lieu 7_RCM."""
-    rows = rcm_risks[rcm_risks["vc1_id"] == vc1_id]
+def rcm_group_health_color(group_id: str, rcm_risks: pd.DataFrame) -> str | None:
+    """Nhu rcm_block_health_color nhung o CAP NHOM NHO (vd "FI-02", xem CLAUDE.md Muc 11.6) -
+    day la cap dung KHOP THAT SU voi "vc2_id" cua chinh sheet CADIVI_RCM (da xac minh 10/10 ma
+    khop, khac voi cap hoat dong cu the VC3 ma sheet nay KHONG khop toi). Tra ve None neu nhom
+    khong co du lieu CADIVI_RCM nao."""
+    rows = rcm_risks[rcm_risks["vc2_id"] == group_id]
     if rows.empty:
         return None
     return _color_by_red_count(_count_red(rows))
@@ -141,14 +140,16 @@ def show_risk_profile(risks: pd.DataFrame, subject_label: str, subject_sub: str 
 
 def show_activity_risks(
     activity_risks: pd.DataFrame, subject_label: str, subject_sub: str = "",
-    edges: pd.DataFrame | None = None, rcm_risks: pd.DataFrame | None = None,
+    rcm_risks: pd.DataFrame | None = None,
 ) -> None:
     """Hop thoai RUT GON cho 1 hoat dong trong mo hinh Chuoi gia tri Sheet1 (Phan 3) - khac
     show_risk_profile() vi Sheet1 khong co diem so/RAG/chu tri/kiem soat nhu Risk Register,
     chi co ma rui ro + ten + Problem/Details. `activity_risks` la cac dong Sheet1 (tu
-    get_value_chain_v2) da loc theo 1 vc2_id; `edges` (tuy chon) la get_risk_trigger_edges()
-    de hien "co the kich hoat" ngay duoi tung rui ro cu the (khong gop chung ca hoat dong,
-    vi moi rui ro co the co quan he kich hoat khac nhau).
+    get_value_chain_v2) da loc theo 1 vc2_id.
+
+    ⚠️ Truoc day co tham so `edges` de hien "co the kich hoat" (tu sheet Risk_Linkages) - sheet
+    do da bi xoa khoi workbook nguon, khong co sheet thay the, da bo tham so nay (xem
+    CLAUDE.md Muc 11.5).
 
     `rcm_risks` (tuy chon, xem CLAUDE.md Muc 11.4) la cac dong tu get_rcm_risks() da loc theo
     1 vc2_id - nguon rui ro THU 3, hien o 1 muc RIENG ben duoi muc Sheet1, LUON hien (ke ca khi
@@ -179,18 +180,6 @@ def show_activity_risks(
                     st.caption(f"Vấn đề: {r['problem']}")
                 if pd.notna(r.get("details")):
                     st.write(nz(r.get("details")))
-
-                if edges is not None and not edges.empty:
-                    hits = edges[edges["source_risk_id"] == r["risk_id"]]
-                    for _, e in hits.iterrows():
-                        extra = f" (mức ảnh hưởng: {e['impact_level']})" if pd.notna(e.get("impact_level")) else ""
-                        mechanism = f"<br><span style='opacity:0.85'>{e['mechanism']}</span>" if pd.notna(e.get("mechanism")) else ""
-                        st.markdown(
-                            f"<div style='font-size:0.85rem;background:{risk_palette()['low']}22;"
-                            f"border-radius:6px;padding:6px 10px;margin-top:6px'>"
-                            f"🔗 <b>Có thể kích hoạt:</b> {nz(e.get('target_risk_name'))}{extra}{mechanism}</div>",
-                            unsafe_allow_html=True,
-                        )
 
         if has_rcm:
             st.divider()

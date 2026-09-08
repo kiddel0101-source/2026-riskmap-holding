@@ -273,7 +273,12 @@ sự kiện** — dữ liệu này **chỉ ghi trong DB riêng của app** (2 b�
   ghi chú rõ đây chưa phải rủi ro chính thức, cán bộ phải tự thêm vào Excel nếu xác nhận là thật.
 - MVP chưa có chức năng "bỏ xác nhận"/xoá — tích nhầm thì tạm thời chưa tự sửa được trên UI.
 
-### 11.2. "Rủi ro có thể kích hoạt" — ĐÃ CHUYỂN sang `Risk_Linkages` + `Sheet1` (Phần 3)
+### 11.2. "Rủi ro có thể kích hoạt" — ĐÃ CHUYỂN sang `Risk_Linkages` + `Sheet1` (Phần 3) — [⚠️ ĐÃ XOÁ HẲN, xem Mục 11.5]
+
+⚠️ **TOÀN BỘ tính năng mô tả trong mục này (11.2) đã bị GỠ BỎ hoàn toàn** — sheet `Risk_Linkages`
+đã bị xoá khỏi workbook nguồn, không có sheet thay thế, người dùng đã xác nhận gỡ tính năng thay
+vì giữ code chết (xem Mục 11.5). Giữ lại nội dung dưới đây CHỈ để tham khảo lịch sử/thiết kế cũ,
+KHÔNG còn đúng với code hiện tại — đừng dựa vào mục này để sửa code.
 
 ⚠️ **Lịch sử:** bản đầu (Phần 2) dùng `0. Danh mục rủi ro` + `8_Risk_node` (nối theo TÊN NHÓM rủi
 ro chung chung). Sau đó workbook được bổ sung 3 sheet mới (`Sheet1`, `Risk_Linkages`,
@@ -306,20 +311,36 @@ workbook, code không đọc nữa).
 
 ### 11.3. Trang Chuỗi giá trị — nguồn dữ liệu THAY THẾ bằng `Sheet1` (Phần 3)
 
-⚠️ **App hiện có 2 mô hình Chuỗi giá trị SONG SONG, đừng nhầm lẫn:**
+⚠️ **[CẬP NHẬT — xem Mục 11.5]** App TỪNG có 2 mô hình Chuỗi giá trị song song (đoạn dưới đây mô
+tả trạng thái CŨ, giữ lại để tham khảo lịch sử). Sheet `2_Value_Chain_Master` (mô hình cũ theo
+công ty) đã bị **xoá khỏi workbook nguồn**, không có sheet thay thế — `repository.get_value_chain()`
+và mọi tính năng phụ thuộc nó ở Trang chủ/Sự kiện rủi ro đã bị GỠ BỎ. `2_VC_Master` (dưới đây vẫn
+gọi bằng tên cũ "Sheet1" ở một số đoạn — đã đổi tên, xem Mục 11.3 phần đầu) giờ là nguồn Chuỗi giá
+trị **DUY NHẤT** trong toàn app.
 
-- `2_Value_Chain_Master` (qua `repository.get_value_chain()` + `viz.value_chain.build_value_chain_map()`)
+- ~~`2_Value_Chain_Master`~~ (qua `repository.get_value_chain()` + `viz.value_chain.build_value_chain_map()`)
   — mô hình CŨ, có cột `company_id` (theo từng công ty CADIVI/EMIC), 7 khối, `vc_node_id` kiểu
-  "MS-001". Vẫn dùng ở **Trang chủ** và **Sự kiện rủi ro** (dò từ khóa hoạt động Chuỗi giá trị) —
-  KHÔNG đổi ở 2 trang này.
-- `Sheet1` (qua `repository.get_value_chain_v2()`) — mô hình MỚI, **không có cột công ty** (dùng
-  chung toàn Tập đoàn), đủ **9 khối Porter** (thêm Cơ sở hạ tầng doanh nghiệp + Quản trị nguồn
-  nhân lực), có rủi ro gắn TRỰC TIẾP theo hoạt động (`risk_id` dạng `RSK-xxx`, không phải
-  `RR.xxxx`). Chỉ dùng riêng ở **trang Chuỗi giá trị** (`pages/2_Chuoi_gia_tri.py`) — đã thay thế
-  hoàn toàn mô hình cũ ở trang này theo yêu cầu người dùng.
+  "MS-001". **ĐÃ XOÁ** (sheet nguồn không còn tồn tại) — không còn dùng ở đâu nữa.
+- `2_VC_Master` (qua `repository.get_value_chain_v2()`) — mô hình DUY NHẤT hiện tại, **không có
+  cột công ty** (dùng chung toàn Tập đoàn), đủ **9 khối Porter** (thêm Cơ sở hạ tầng doanh nghiệp
+  + Quản trị nguồn nhân lực), có rủi ro gắn TRỰC TIẾP theo hoạt động (`risk_id` dạng `RSK-xxx`,
+  không phải `RR.xxxx`). Chỉ dùng ở **trang Chuỗi giá trị** (`pages/2_Chuoi_gia_tri.py`).
 - ⚠️ Sheet1 vừa bị đổi tên 2 cột gốc trên SharePoint (`Chuỗi giá trị 1`→`Value Chain`, `Chuỗi giá
   trị 2`→`Sub-Value Chain`) — `get_value_chain_v2()` nhận cả tên cũ/mới để không vỡ lại nếu người
   phụ trách dữ liệu đổi tên tiếp.
+- ⚠️ **Lần đổi cấu trúc mới nhất (đã gặp thật, đã sửa):** Sheet1 được thêm 1 cấp phân cấp trung
+  gian mới **`Value Chain L2`** (còn thưa, phần lớn rỗng — CHƯA dùng trong app), đồng thời đổi
+  hẳn 2 cột đang dùng cho hoạt động: cột **`VC2_ID`** cũ nay **RỖNG HOÀN TOÀN** (còn tồn tại như
+  vết tích, không bị xoá khỏi sheet) — dữ liệu mã hoạt động thật (kiểu `"IL-001"`) chuyển sang
+  cột mới **`VC3_ID`**; tên hiển thị hoạt động chuyển từ `"Sub-Value Chain"` sang **`"Value Chain
+  L3"`**. Khác các lần đổi tên trước (chỉ 1 trong 2 tên tồn tại tại 1 thời điểm), lần này **CẢ 2
+  cột cũ/mới cùng tồn tại đồng thời** trong sheet — dict `rename()` đơn giản KHÔNG dùng được nữa
+  (2 cột sẽ cùng đổi thành `vc2_id`, pandas không gộp giá trị, sinh cột trùng tên). Đã sửa bằng
+  hàm mới `repository._first_non_empty_column(df, candidates)` — duyệt qua danh sách tên cột ứng
+  viên theo thứ tự ưu tiên (mới trước, cũ sau), chọn cột ĐẦU TIÊN có ít nhất 1 giá trị khác rỗng,
+  không chỉ dựa vào "cột có tồn tại trong sheet". Rút kinh nghiệm: khi sheet đổi cấu trúc, đừng
+  giả định tên cột cũ đã biến mất — có thể vẫn còn nhưng rỗng, phải kiểm tra dữ liệu thật trước
+  khi tin vào tên cột.
 - `vc2_id` (kiểu "MS-005" trong Sheet1) và `vc_node_id` (kiểu "MS-001" trong `2_Value_Chain_Master`)
   **KHÔNG cùng không gian mã** dù format giống nhau — đã kiểm tra thực tế 2 mã khác nội dung nhau.
   Đừng bao giờ so sánh trực tiếp giữa 2 hệ này.
@@ -344,13 +365,28 @@ workbook, code không đọc nữa).
   ID ổn định, không khớp theo tên hiển thị** — tên hiển thị trên sheet này đã đổi nhiều lần và sẽ
   còn đổi tiếp.
 
-### 11.4. Rủi ro từ `7_RCM` — nguồn rủi ro THỨ 3, cộng dồn vào trang Chuỗi giá trị
+### 11.4. Rủi ro từ `CADIVI_RCM` (tên cũ `7_RCM`) — nguồn rủi ro THỨ 3, cộng dồn vào trang Chuỗi giá trị
 
-Sheet **`7_RCM`** (Ma trận kiểm soát rủi ro, header ngay dòng đầu) là nguồn rủi ro **tách biệt
-hoàn toàn** với `RSK-xxx` (Sheet1) và `RR.xxxx` (Risk Register) — cột `"Risk"` ở đây là **mô tả
-rủi ro theo danh mục** (vd *"4.3.1. Sự phụ thuộc vào nhóm nhà cung cấp"*, mã `Risk_category_ID` =
-`"RC-4.3"`), không phải 1 mã định danh. Gắn theo công ty (`company_id`: CADIVI/EMIC). Nối sang
-Sheet1 qua `VC2_ID` — đã xác minh khớp 16/16 (tại thời điểm kiểm tra).
+⚠️ Sheet đã đổi tên từ `7_RCM` sang `CADIVI_RCM` (tách theo từng công ty trên SharePoint — hiện
+CHỈ có `CADIVI_RCM`, người dùng đã xác nhận chưa có công ty nào khác; nếu công ty khác được bổ
+sung sau này, sheet mới sẽ có dạng `"{Tên công ty}_RCM"`, nhưng code hiện đọc CỨNG `"CADIVI_RCM"`
+— cần cập nhật nếu có sheet thứ 2). `SHEET_HEADER_ROW["CADIVI_RCM"]` (`src/config.py`).
+
+Sheet Ma trận kiểm soát rủi ro này là nguồn rủi ro **tách biệt hoàn toàn** với `RSK-xxx`
+(`2_VC_Master`) và `RR.xxxx` (Risk Register) — cột `"Risk"` ở đây là **mô tả rủi ro theo danh
+mục** (vd *"4.3.1. Sự phụ thuộc vào nhóm nhà cung cấp"*, mã `Risk_category_ID` = `"RC-4.3"`),
+không phải 1 mã định danh. Gắn theo công ty (`company_id`).
+
+⚠️ **Lần đổi cấu trúc gần nhất (đã gặp thật, đã sửa):** cột `VC2_ID` của `CADIVI_RCM` giờ chứa mã
+CẤP NHÓM NHỎ (vd `"FI-02"`, khớp `2_VC_Master.VC2_ID`/`"Value Chain L2"`, đã xác minh 10/10 mã
+khớp), KHÔNG còn khớp với mã hoạt động cụ thể (VC3, vd `"FI-021"`) mà app dùng làm `vc2_id` nữa
+(0/10 khớp) — khác hẳn thời điểm sheet còn tên `7_RCM`, khi đó `VC2_ID` khớp thẳng cấp hoạt động
+(16/16). Người dùng đã xác nhận **CHƯA cần** gán rủi ro CADIVI_RCM xuống từng hoạt động cụ thể —
+chỉ dùng được ở cấp khối (`vc1_id`, xem `rcm_block_health_color()`) và cấp nhóm nhỏ (`vc2_id` của
+chính CADIVI_RCM, chưa hiển thị lên UI). Nếu sau này cần gán xuống VC3, phải đi qua
+`2_VC_Master`: `vc1_id` → tất cả `vc2_id` (nhóm nhỏ) → tất cả `vc3_id` (hoạt động con) — 1 nhóm
+nhỏ có thể có 3-6 hoạt động con, cần hỏi lại người dùng cách hiển thị (rủi ro lặp lại trên mọi
+hoạt động con, hay 1 khu vực riêng theo nhóm).
 
 ⚠️ **Sheet này đang được người phụ trách chỉnh sửa TRỰC TIẾP trong lúc làm tính năng** — đã bắt gặp
 thật 2 lần trong cùng 1 buổi: (1) số dòng dữ liệu giảm từ 20 (CADIVI+EMIC) xuống còn 12 (chỉ
@@ -386,14 +422,10 @@ bất thường.
   6 trường tương ứng (Entity: mô tả kiểm soát/đầu mối/cấp phê duyệt/độ bao phủ/mức định lượng/tần
   suất cập nhật — cột I-N; Transaction: mô tả kiểm soát/người soát xét/người phê duyệt/tần suất
   thực hiện/hình thức/nền tảng — cột R-W), không hiện sẵn để hộp thoại không quá dài.
-- **Màu ô mã hoạt động** (vd `IL-006`) trên danh sách hoạt động trong khối: `risk_dialog.
-  rcm_control_health_color(vc2_id, rcm_risks)` đếm số đánh giá **"đỏ"** (Không hiệu lực VÀ Không
-  hiệu quả — cả Entity lẫn Transaction Level, mỗi cấp tính riêng 1 lần) trên TOÀN BỘ rủi ro 7_RCM
-  gắn với hoạt động đó, rồi so ngưỡng: ≥7 đỏ → đỏ; ≥5 → cam; ≥3 → **vàng** (đã chốt: đếm theo SỐ
-  KIỂM SOÁT không hiệu lực/không hiệu quả, KHÔNG đếm theo số rủi ro; chỉ tính "đỏ" — combo cam
-  (1/2 tiêu chí đạt) KHÔNG tính vào đếm); còn lại (kể cả 0 đỏ) → xanh. Hoạt động KHÔNG có dữ liệu
-  7_RCM → trả về `None`, giữ nguyên màu mono trung tính như cũ (đã chốt: không gộp với "chưa xác
-  định" vì 2 ý nghĩa khác nhau — không có dữ liệu ≠ có dữ liệu nhưng combo lạ).
+- ⚠️ **Đã XOÁ `rcm_control_health_color()`** (bản màu ô mã hoạt động ở cấp vc2_id) — sheet
+  `7_RCM` đổi tên thành `CADIVI_RCM` và đồng thời đổi Ý NGHĨA cột `vc2_id` sang cấp NHÓM NHỎ
+  (không còn khớp với `vc2_id` cấp hoạt động cụ thể app đang dùng, xem Mục 11.4 bên dưới) - hàm
+  cũ luôn trả `None` nên đã bỏ hẳn, chỉ còn `rcm_block_health_color()` ở cấp khối.
 - Thêm khoá `"yellow"` vào `risk_palette()` (`src/theme.py`) — **tách riêng** với `"low"` (cam)
   vì phục vụ thang 4 mức (xanh/vàng/cam/đỏ) của ngưỡng trên, khác ý nghĩa với RAG 3 mức thông
   thường (none/low/high) đang dùng ở những chỗ khác trong app.
@@ -406,3 +438,115 @@ bất thường.
   (chưa có hoạt động nào trong khối có dữ liệu 7_RCM) giữ màu trung tính như thiết kế gốc (xem Mục
   11.3 — quyết định "khối trung tính" ban đầu nay chỉ áp dụng khi thật sự KHÔNG có dữ liệu, không
   còn tuyệt đối cho mọi trường hợp).
+
+### 11.5. XOÁ tính năng phụ thuộc `2_Value_Chain_Master` + `Risk_Linkages` — 2 sheet đã bị xoá khỏi workbook nguồn
+
+⚠️ **Đã gặp thật, mức độ nghiêm trọng cao nhất từ trước tới nay:** workbook nguồn bị chỉnh sửa
+trực tiếp, XOÁ HẲN 2 sheet app đang đọc, không có sheet thay thế — khác các lần trước (đổi tên/
+đổi cấu trúc cột), lần này là **xoá toàn bộ nguồn dữ liệu**. Đã hỏi lại người dùng, được xác nhận:
+*"Nếu ko tìm thấy thông tin nào hãy loại ra khỏi hệ thống"* — tức gỡ bỏ HẲN các tính năng phụ
+thuộc, không để lại code chết/nhánh luôn rỗng.
+
+- **`2_Value_Chain_Master`** — mô hình Chuỗi giá trị CŨ theo công ty (7 khối, mã `vc_node_id`
+  kiểu `"PR-001"`). Trước đây dùng ở **Trang chủ** (KPI "Công ty có dữ liệu") và **Sự kiện rủi
+  ro** (nguồn tìm kiếm "Hoạt động trong Chuỗi giá trị" + form tạo rủi ro nháp từ 1 hoạt động).
+- **`Risk_Linkages`** — quan hệ "rủi ro này có thể kích hoạt rủi ro khác". Trước đây dùng ở
+  **Chuỗi giá trị** (dòng "🔗 Có thể kích hoạt" trong hộp thoại rủi ro), **Danh mục rủi ro** (cột
+  "Có thể kích hoạt" ở 2 bảng xác nhận/nháp), **Sự kiện rủi ro** (dòng "có thể kích hoạt" dưới mỗi
+  rủi ro khớp + preview trong form tạo rủi ro nháp).
+- `4_Risk_Register.vc_node_id` (mã kiểu `"PR-001"`) giờ **không còn nối được đi đâu** vì sheet
+  đích đã mất — cột này coi như dữ liệu vết tích, không dùng được cho tính năng nào nữa.
+
+**Đã xoá hoàn toàn** (không phải comment-out): `repository.get_value_chain()`,
+`get_risk_trigger_edges()`, `risks_triggered_by()`, `risks_triggered_by_vc2()`,
+`risks_exploded_by_vc_node()`, `risk_counts_by_node()`, `risks_for_node()` (2 hàm cuối đã chết từ
+trước, không ai gọi); `insights.value_chain_hotspots()`; `viz.value_chain.build_value_chain_map()`
++ `_FUNCTION_ORDER`/`_sort_functions` + `build_risk_by_function_bar()` (bản cũ — 3 hàm/hằng này đã
+chết từ trước khi bị xoá, không có trang nào gọi tới, có lẽ sót lại từ khi Trang chủ được đơn giản
+hoá ở 1 thời điểm nào đó trước dự án này); `insights_event._VC_FIELDS`/`_label_value_chain`/
+`scan_value_chain()` + nhánh `"value_chain"` trong `_scan_source()`/`scan_all()`;
+`risk_dialog.show_activity_risks()`'s tham số `edges`; `pages/4_Su_kien_rui_ro.py`'s
+`_render_vc_group()` + toàn bộ luồng "chọn hoạt động Chuỗi giá trị để tạo rủi ro nháp" + dòng "có
+thể kích hoạt" dưới mỗi rủi ro Risk Register khớp; cột "Có thể kích hoạt" ở 2 bảng trên
+`pages/3_Danh_muc_rui_ro.py`; `SHEET_HEADER_ROW` entries cho `"2_Value_Chain_Master"`,
+`"Risk_Linkages"`, và `"6_Risk_Appetite_Threshold"`/`"0. Danh mục rủi ro"`/`"8_Risk_node"` (3 sheet
+cuối không tồn tại nữa VÀ không còn code nào đọc tới sau khi `get_risk_taxonomy()` cũng bị xoá —
+hàm đó chỉ tồn tại để phục vụ `risks_triggered_by`).
+
+**KHÔNG xoá:** `src/data/event_store.py` (lớp lưu trữ SQLite riêng của app) — bảng
+`event_draft_risks` vẫn giữ nguyên schema (cột `vc_node_id`, `trigger_category`) và
+`list_draft_risks()` vẫn hiển thị dữ liệu LỊCH SỬ trên trang Danh mục rủi ro (nhãn "NHÁP"), chỉ
+riêng đường TẠO MỚI draft từ 1 hoạt động Chuỗi giá trị (ở trang Sự kiện rủi ro) bị gỡ vì không còn
+nguồn "Hoạt động trong Chuỗi giá trị" để chọn từ đó nữa.
+
+**Rút kinh nghiệm:** khi 1 sheet nguồn bị XOÁ HẲN (không phải đổi tên/cấu trúc) và không có sheet
+thay thế rõ ràng, đừng để code âm thầm crash (`ValueError: Worksheet ... not found`) hay để lại
+nhánh tính năng luôn-luôn-rỗng — hỏi thẳng người dùng có xác nhận xoá tính năng đó không, rồi dọn
+sạch (kể cả code đã chết từ trước bị lộ ra trong lúc dọn, như `build_value_chain_map` ở trên).
+
+### 11.6. Thêm cấp VC2 (nhóm nhỏ) vào trang Chuỗi giá trị — luồng bấm nay có 3 cấp
+
+`2_VC_Master` có 3 cấp phân cấp thật (xem Mục 11.3): **VC1** (khối, vd "FI") → **VC2** "Value
+Chain L2" (nhóm nhỏ, vd "FI-02", 1-20 nhóm/khối tuỳ khối) → **VC3** "Value Chain L3" (hoạt động
+cụ thể, vd "FI-021", 187 hoạt động toàn bộ). Trước đây trang chỉ hiển thị 2 cấp (VC1 → nhảy thẳng
+xuống danh sách VC3) — đã chốt với người dùng thêm cấp VC2 làm tầng trung gian, vì đây đúng là
+cấp mà dữ liệu `CADIVI_RCM` khớp thật (xem Mục 11.4), giúp màu kiểm soát chính xác hơn hẳn so với
+chỉ tô ở cấp khối.
+
+- `repository.get_value_chain_v2()` trả thêm 2 cột `group_id`/`group_name` (đọc thẳng từ
+  `VC2_ID`/`"Value Chain L2"` của `2_VC_Master`) — đặt tên KHÁC hẳn `vc2_id`/`vc2_name` (đã dùng
+  sẵn cho cấp VC3) để tránh nhầm 2 khái niệm.
+- `risk_dialog.rcm_group_health_color(group_id, rcm_risks)` — giống hệt quy tắc ngưỡng của
+  `rcm_block_health_color()` (đếm "đỏ", ngưỡng 7/5/3) nhưng lọc theo `rcm_risks["vc2_id"] ==
+  group_id` (khớp ĐÚNG cấp, đã xác minh 10/10 mã khớp — khác `rcm_block_health_color` phải gộp
+  qua `vc1_id`).
+- **Luồng bấm mới trên `pages/2_Chuoi_gia_tri.py`:** bấm 1 khối VC1 (biểu đồ Plotly, không đổi)
+  → hiện **lưới ô VC2** (Streamlit native — khung bo viền + nút "Chọn nhóm", 4 cột/hàng, tự xuống
+  dòng, KHÔNG dùng Plotly vì số lượng ô dao động quá lớn 1-20 giữa các khối, không hợp biểu đồ cố
+  định 5+4 cột như VC1) — mỗi ô tô màu theo `rcm_group_health_color()`, ô trung tính nếu nhóm
+  chưa có dữ liệu CADIVI_RCM → bấm 1 ô VC2 → mới hiện danh sách hoạt động VC3 (UI cũ, không đổi)
+  ngay bên dưới lưới ô (không thay thế, ĐÍNH KÈM thêm — khớp mockup đã duyệt). Trạng thái lưu ở
+  `st.session_state["_vc2_selected_group"]`, được reset về `None` mỗi khi người dùng bấm sang 1
+  khối VC1 khác hoặc bấm "✕ Đóng" — tránh việc chọn nhóm cũ "dính" sang ngữ cảnh khối mới. (⚠️ Cơ
+  chế bấm khối VC1 đã đổi hẳn ở Mục 11.7 — không còn dùng `clicked_block`/Plotly `on_select`.)
+- ⚠️ **Phát hiện trong lúc test (KHÔNG phải lỗi do tính năng này gây ra, đã báo cho người dùng):**
+  bộ lọc "Nhóm hoạt động" (Chính/Hỗ trợ, `nodes["category"].isin(categories)`) đã tồn tại từ
+  trước — nhưng với 1 số khối (vd "Cơ sở hạ tầng doanh nghiệp"), rất nhiều hoạt động VC3 có cột
+  "Phân loại" (category) RỖNG (`NaN`) trong dữ liệu nguồn (33/67 dòng ở khối này) — vì
+  `NaN.isin({"Chính","Hỗ trợ"})` luôn là `False`, các dòng đó bị bộ lọc ẩn đi dù người dùng chưa
+  đổi gì (mặc định chọn cả 2 giá trị). Ở cấp VC3 (danh sách phẳng) hậu quả không rõ ràng lắm
+  (chỉ thiếu vài dòng trong 1 danh sách dài); nhưng ở cấp VC2 mới này, hậu quả RÕ hơn nhiều — nếu
+  TẤT CẢ hoạt động con của 1 nhóm đều rỗng category, cả Ô NHÓM ĐÓ biến mất hoàn toàn khỏi lưới
+  (đã gặp thật: 9/20 nhóm của "Cơ sở hạ tầng doanh nghiệp" biến mất vì lý do này). Đây là hành vi
+  lọc CÓ TỪ TRƯỚC (không phải lỗi mới), chưa tự ý sửa vì đó là thiết kế đã duyệt trước đây — nếu
+  người dùng muốn đổi (vd hoạt động chưa phân loại luôn hiện bất kể bộ lọc), cần hỏi lại và có
+  thể cần mockup riêng.
+
+### 11.7. Khối VC1 chuyển từ biểu đồ Plotly sang lưới Streamlit — mở rộng ngay dưới hàng đã bấm
+
+Người dùng muốn khi bấm 1 khối VC1, nội dung mở rộng (lưới VC2 + danh sách VC3) hiện **ngay sau
+hàng chứa khối đó** (hàng Chính hoặc hàng Hỗ trợ), không phải ở cuối trang như thiết kế cũ (Mục
+11.3/11.6) — đã xác nhận: **full chiều rộng trang**, không ép nội dung vừa đúng 1 ô. Plotly KHÔNG
+làm được kiểu "mở rộng tại chỗ" này (biểu đồ là 1 hình duy nhất) — nên 9 khối VC1 đã chuyển hẳn từ
+`viz.value_chain.build_value_chain_blocks()` (Plotly, ĐÃ XOÁ hoàn toàn khỏi codebase) sang lưới
+Streamlit-native (giống hệt cách dựng lưới VC2 ở Mục 11.6: `st.container(border=True)` + nút bấm
+trong mỗi cột của `st.columns()`).
+
+- `repository.vc1_bands(vc1_ids) -> list[tuple[str, list[str]]]` (thay cho `_ID_ORDER_V2`/
+  `_PRIMARY_IDS_V2`/`_sort_ids_v2` trước đây nằm trong `viz/value_chain.py`) — chuyển logic sắp
+  xếp/phân loại Chính-Hỗ trợ sang tầng du liệu (repository) vì `pages/2_Chuoi_gia_tri.py` giờ cần
+  gọi trực tiếp (không còn qua 1 ham dung Plotly duy nhat).
+- **Cach dung**: voi moi band tu `vc1_bands()`, ve 1 hang `st.columns(len(ids))`, moi cot la 1
+  `st.container(border=True)` (ten khoi to mau qua `rcm_block_health_color()`, giong het style o
+  VC2) + nut "Chọn khối"/"✓ Đang chọn". Ngay SAU vong lap ve ca hang (ngoai `with col:`), kiem tra
+  `if selected_block_id in ids: _render_block_expansion(selected_block_id)` — vi day la code binh
+  thuong sau khi cac `st.columns()` cua hang do da dong, noi dung se rong full trang va nam dung
+  ngay sau hang vua ve, KHONG phai cuoi trang (moi band tu ve xong hang cua no roi moi kiem tra mo
+  rong, nen band Ho tro luon ve SAU band Chinh, giu dung thu tu doc).
+- **State**: `st.session_state["_vc2_selected_block_id"]` (luu `vc1_id` ON dinh, KHONG phai
+  `vc1_name` nhu ban Plotly cu - nhat quan voi nguyen tac "luon khop theo ma on dinh" da rut ra
+  o Muc 11.3) - set truc tiep khi bam nut (khong can co che "ack" chong-bam-lai-do-Plotly-rerun
+  nhu truoc, vi nut Streamlit tu nhien khong bi trigger lai qua nhieu lan tren 1 lan bam that).
+  Reset ve `None` cung voi `_vc2_selected_group` khi doi khoi hoac bam "✕ Đóng".
+- `build_risk_by_function_bar_v2()` (bar chart "Rủi ro theo khối chức năng" o cuoi trang) VAN
+  con dung Plotly nhu cu - KHONG lien quan toi thay doi nay, chi doi rieng phan 9 khoi VC1.

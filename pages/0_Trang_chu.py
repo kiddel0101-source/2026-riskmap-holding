@@ -18,10 +18,9 @@ except loader.WorkbookFetchError as exc:
 st.caption(f"Dữ liệu mới nhất từ SharePoint lúc {fetched_at:%d/%m/%Y %H:%M}.")
 
 companies = repository.get_companies(workbook_bytes)
-value_chain = repository.get_value_chain(workbook_bytes)
 supply_chain = repository.get_supply_chain(workbook_bytes)
 risks = repository.get_risks(workbook_bytes)
-available_ids = repository.companies_with_data(companies, value_chain, supply_chain, risks)
+available_ids = repository.companies_with_data(companies, supply_chain, risks)
 
 c1, c2, c3, c4 = st.columns(4)
 c1.metric("Công ty", len(companies))

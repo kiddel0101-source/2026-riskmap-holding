@@ -1,33 +1,34 @@
 SHAREPOINT_SHARE_URL = (
-    "https://gelexvn.sharepoint.com/:x:/r/sites/gex.qtrr/Shared%20Documents/General/"
-    "7.%20C%C3%B4ng%20vi%E1%BB%87c%20kh%C3%A1c/25.%20Mindmap%20r%E1%BB%A7i%20ro%20h%E1%BB%87%20th%E1%BB%91ng/"
-    "0.%20GELEX_Risk_Map_Database.xlsx?d=w97bbddd67a644ca3961e22251fe307e8&csf=1&web=1&e=fUbgzW"
+    "https://gelexvn.sharepoint.com/:x:/s/gex.qtrr/"
+    "IQDWQHZUIRVpTL-ADxqLD5YCAWbE3wwxAGLMmuV1RFokV6M?&e=5b7kH6"
 )
 GRAPH_ACCOUNT = "DAS_U1"
 CACHE_TTL_SECONDS = 900  # 15 phut
 
-# Vi tri dong header (0-indexed) khac nhau giua cac sheet: 1_Company_Master va
-# 6_Risk_Appetite_Threshold chi co 1 dong tieu de + 1 dong trong truoc header (header=2);
-# cac sheet con lai co them 1 dong ghi chu huong dan truoc dong trong (header=3).
+# Vi tri dong header (0-indexed) khac nhau giua cac sheet: 1_Company_Master chi co 1 dong
+# tieu de + 1 dong trong truoc header (header=2); cac sheet con lai co them 1 dong ghi chu
+# huong dan truoc dong trong (header=3).
+#
+# ⚠️ Workbook nguon dang duoc phu trach du lieu tai cau truc TRUC TIEP, da gap 3 lan lien
+# tiep trong cung du an (xem CLAUDE.md Muc 11.3/11.4/11.5): sheet "2_Value_Chain_Master"
+# (mo hinh Chuoi gia tri CU theo cong ty, dung o Trang chu + Su kien rui ro) va sheet
+# "Risk_Linkages" (quan he rui ro-kich-hoat-rui-ro) đa bi XOA HAN, khong co sheet thay the -
+# nguoi dung da xac nhan go bo hoan toan tinh nang phu thuoc 2 sheet nay khoi app (xem Muc
+# 11.5). "6_Risk_Appetite_Threshold" cung khong con nhung chua tung duoc code nao doc toi.
 SHEET_HEADER_ROW = {
     "1_Company_Master": 2,
-    "2_Value_Chain_Master": 3,
     "3_Supply_Chain_Master": 3,
     "4_Risk_Register": 3,
     "5_KRI_Library": 3,
-    "6_Risk_Appetite_Threshold": 2,
-    # Danh muc rui ro toan Tap doan GELEX + quan he "nhom rui ro nay co the kich hoat nhom
-    # khac" (xem CLAUDE.md Muc 11) - header nam ngay dong dau tien, khac cac sheet tren.
-    "0. Danh mục rủi ro": 0,
-    "8_Risk_node": 0,
-    # Mo hinh Chuoi gia tri Porter 9 khoi dung chung toan Tap doan (thay the
-    # 2_Value_Chain_Master CHI cho trang Chuoi gia tri) + quan he rui ro-kich-hoat-rui ro
-    # chi tiet hon 8_Risk_node (xem CLAUDE.md Muc 11.2/11.3). Header dong dau tien.
-    "Sheet1": 0,
-    "Risk_Linkages": 0,
+    # Mo hinh Chuoi gia tri Porter 9 khoi dung chung toan Tap doan (xem CLAUDE.md Muc 11.2/
+    # 11.3). Header dong dau tien. Sheet nay ten cu la "Sheet1", da doi ten thanh
+    # "2_VC_Master" tren SharePoint.
+    "2_VC_Master": 0,
     # Ma tran kiem soat rui ro (xem CLAUDE.md Muc 11.4) - tieu de nam ngay dong dau tien du
     # co 2 dong ghi chu huong dan phia tren (khong tinh vao header), da kiem tra truc tiep.
-    "7_RCM": 2,
+    # Ten cu la "7_RCM", da doi ten thanh "{Ten cong ty}_RCM" - hien CHI co "CADIVI_RCM"
+    # (nguoi dung xac nhan chua co cong ty nao khac), tach theo tung cong ty tren SharePoint.
+    "CADIVI_RCM": 2,
 }
 
 RAG_COLORS = {

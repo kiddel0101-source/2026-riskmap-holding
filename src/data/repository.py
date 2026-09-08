@@ -14,12 +14,45 @@ def _read_sheet(workbook_bytes: bytes, sheet: str) -> pd.DataFrame:
     return df
 
 
+# Thu tu 9 khoi Porter day du cho trang Chuoi gia tri, phan loai theo MA khoi (vc1_id) chu
+# KHONG theo ten hien thi (vc1_name) - ten hien thi tren SharePoint da bi doi it nhat 3 lan
+# ("Vận hành / Sản xuất" -> "Sản xuất", "Marketing & Bán hàng" -> "Bán hàng", "Thu mua" ->
+# "Mua hàng"...) trong khi ma (IL/OP/OL/MS/SV/PR/TD/FI/HR, cung la tien to cua vc2_id nhu
+# "OP-001") on dinh qua tat ca cac lan doi ten.
+VC1_ID_ORDER = ["IL", "OP", "OL", "MS", "SV", "PR", "TD", "FI", "HR"]
+# 5 ma CHINH (Primary) + 4 ma HO TRO (Support) theo dung khung Porter - day la phan loai o CAP
+# KHOI, khac voi cot "category" (Phan loai Chinh/Ho tro) trong tung dong du lieu von la phan
+# loai o CAP HOAT DONG (vd hoat dong "PR-003" thuoc khoi Ho tro "Mua hàng" nhung ban than no
+# van co the duoc gan category="Hỗ trợ" trong du lieu - 2 truc doc lap nhau).
+VC1_PRIMARY_IDS = set(VC1_ID_ORDER[:5])
+
+
+def vc1_bands(vc1_ids) -> list[tuple[str, list[str]]]:
+    """Chia danh sach ma khoi (vc1_id) thanh 2 "band" theo khung Porter: [("HOẠT ĐỘNG CHÍNH",
+    [...]), ("HOẠT ĐỘNG HỖ TRỢ", [...])], moi band da sap xep dung thu tu VC1_ID_ORDER. Ma nao
+    khong khop danh sach Chinh (ke ca ma la vd "KHÁC" du phong) deu xep vao Ho tro, tranh bi
+    RUNG mat khoi giao dien neu du lieu nguon phat sinh ma khoi moi. Dung chung cho trang
+    Chuoi gia tri (luoi khoi Streamlit) va bar chart rui ro theo khoi."""
+    order_index = {code: i for i, code in enumerate(VC1_ID_ORDER)}
+    all_ids = list(dict.fromkeys(vc1_ids))
+    primary = sorted(
+        [i for i in all_ids if i in VC1_PRIMARY_IDS],
+        key=lambda code: order_index.get(code, len(VC1_ID_ORDER)),
+    )
+    support = sorted(
+        [i for i in all_ids if i not in VC1_PRIMARY_IDS],
+        key=lambda code: order_index.get(code, len(VC1_ID_ORDER)),
+    )
+    bands = []
+    if primary:
+        bands.append(("HOẠT ĐỘNG CHÍNH", primary))
+    if support:
+        bands.append(("HOẠT ĐỘNG HỖ TRỢ", support))
+    return bands
+
+
 def get_companies(workbook_bytes: bytes) -> pd.DataFrame:
     return _read_sheet(workbook_bytes, "1_Company_Master")
-
-
-def get_value_chain(workbook_bytes: bytes) -> pd.DataFrame:
-    return _read_sheet(workbook_bytes, "2_Value_Chain_Master")
 
 
 def get_supply_chain(workbook_bytes: bytes) -> pd.DataFrame:
@@ -28,31 +61,6 @@ def get_supply_chain(workbook_bytes: bytes) -> pd.DataFrame:
 
 def get_risks(workbook_bytes: bytes) -> pd.DataFrame:
     return _read_sheet(workbook_bytes, "4_Risk_Register")
-
-
-def risks_exploded_by_vc_node(risks: pd.DataFrame) -> pd.DataFrame:
-    """No cot vc_node_id da-gia-tri (vd "MS-001, MS-002") thanh nhieu dong, moi dong 1 node."""
-    df = risks.dropna(subset=["vc_node_id"]).copy()
-    df["vc_node_id"] = df["vc_node_id"].astype(str).str.split(",")
-    df = df.explode("vc_node_id")
-    df["vc_node_id"] = df["vc_node_id"].str.strip()
-    return df[df["vc_node_id"] != ""]
-
-
-def risk_counts_by_node(risks: pd.DataFrame) -> pd.Series:
-    if risks.empty or "vc_node_id" not in risks.columns:
-        return pd.Series(dtype=int)
-    exploded = risks_exploded_by_vc_node(risks)
-    if exploded.empty:
-        return pd.Series(dtype=int)
-    return exploded.groupby("vc_node_id")["risk_id"].nunique()
-
-
-def risks_for_node(risks: pd.DataFrame, vc_node_id: str) -> pd.DataFrame:
-    exploded = risks_exploded_by_vc_node(risks)
-    if exploded.empty:
-        return exploded
-    return risks[risks["risk_id"].isin(exploded.loc[exploded["vc_node_id"] == vc_node_id, "risk_id"])]
 
 
 def risk_counts_by_sc_link(risks: pd.DataFrame) -> pd.Series:
@@ -69,83 +77,78 @@ def risks_for_sc_link(risks: pd.DataFrame, sc_link_id: str) -> pd.DataFrame:
     return risks[risks["sc_link_id"] == sc_link_id]
 
 
-def get_risk_taxonomy(workbook_bytes: bytes) -> pd.DataFrame:
-    """Danh muc rui ro toan Tap doan GELEX (sheet '0. Danh muc rui ro', 145 dong - RONG hon
-    4_Risk_Register dang dung, nhung dung chung khong gian ma risk_id). Lay risk_id +
-    VC2_ID (da xac minh: cot noi thang risk_id sang hoat dong trong Sheet1, phu 143/145
-    dong) - la khoa noi sang get_value_chain_v2()/get_risk_trigger_edges() (xem
-    risks_triggered_by). Sheet co 2 cot trung ten "VC2_ID"; pandas tu doi ten cot thu 2
-    thanh "VC2_ID.1" - chi dung cot dau (chinh).
-    """
-    df = _read_sheet(workbook_bytes, "0. Danh mục rủi ro")
-    out = df[["risk_id", "VC2_ID"]].rename(columns={"VC2_ID": "vc2_id"})
-    return out.dropna()
-
-
 def get_value_chain_v2(workbook_bytes: bytes) -> pd.DataFrame:
-    """Mo hinh Chuoi gia tri Porter DAY DU 9 khoi (sheet 'Sheet1', 75 dong) dung chung cho
-    toan Tap doan GELEX - KHONG co cot cong ty, thay the 2_Value_Chain_Master CHI o trang
-    Chuoi gia tri (cac trang khac - Trang chu, Su kien rui ro - van dung
-    2_Value_Chain_Master nhu cu, xem CLAUDE.md Muc 11.3).
+    """Mo hinh Chuoi gia tri Porter DAY DU 9 khoi (sheet '2_VC_Master', ten cu la "Sheet1" -
+    da doi ten tren SharePoint, xem CLAUDE.md Muc 11.3) dung chung cho toan Tap doan GELEX -
+    KHONG co cot cong ty. Day la nguon DUY NHAT cho mo hinh Chuoi gia tri trong app - sheet
+    "2_Value_Chain_Master" (mo hinh CU theo cong ty, truoc day dung o Trang chu + Su kien rui
+    ro) da bi xoa khoi workbook nguon, khong co sheet thay the, tinh nang phu thuoc no da bi
+    go bo (xem CLAUDE.md Muc 11.5).
 
     1 dong = 1 (hoat dong, rui ro) - 1 hoat dong (vc2_id) co the lap lai nhieu dong neu co
     nhieu rui ro gan truc tiep (toi da 3), cot rui ro se rong o cac hoat dong chua co rui ro.
 
     ⚠️ Sheet nay dang duoc nguoi phu trach du lieu chinh sua truc tiep tren SharePoint - da
-    it nhat 1 lan doi ten cot goc (vd "Chuoi gia tri 1" -> "Value Chain"). Rename map o day
-    chap nhan CA 2 ten cu/moi cho tung cot de giam rui ro vo lai khi ho doi tiep.
+    nhieu lan doi ten cot goc (vd "Chuoi gia tri 1" -> "Value Chain"). Rename map o day chap
+    nhan CA ten cu/moi cho tung cot de giam rui ro vo lai khi ho doi tiep.
+
+    Sheet co 3 cap phan cap: VC1 (khoi, vd "IL") -> VC2 "Value Chain L2" (nhom nho, vd
+    "IL-01") -> VC3 "Value Chain L3" (hoat dong cu the, vd "IL-011") - ca 3 cap nay HIEN DA
+    DAY DU (187/187 dong, khong con thua nhu truoc). App van dung khai niem "vc2_id"/
+    "vc2_name" cho CAP HOAT DONG CU THE NHAT (tuc la lay tu VC3_ID/Value Chain L3, KHONG
+    phai VC2_ID/Value Chain L2 - 2 ten nay de gay nham vi trung voi khai niem vc2_id cua app)
+    - chon qua `_first_non_empty_column()` de tu dong uu tien cot co du lieu that, phong khi
+    cau truc doi tiep.
+
+    Cap "Value Chain L2"/VC2_ID (nhom nho) tra ve qua `group_id`/`group_name` (xem CLAUDE.md
+    Muc 11.6) - dung ten KHAC han "vc2_id"/"vc2_name" (da la ten co san cho cap VC3) de tranh
+    nham lan. Trang Chuoi gia tri dung cap nay lam 1 tang trung gian giua khoi (VC1) va hoat
+    dong cu the (VC3) khi bam vao 1 khoi.
     """
-    df = _read_sheet(workbook_bytes, "Sheet1")
-    return df.rename(columns={
+    df = _read_sheet(workbook_bytes, "2_VC_Master")
+    out = df.rename(columns={
         "Chuỗi giá trị 1": "vc1_name", "Value Chain": "vc1_name", "VC1_ID": "vc1_id",
-        "Chuỗi giá trị 2": "vc2_name", "Sub-Value Chain": "vc2_name", "VC2_ID": "vc2_id",
         "Phân loại": "category", "Value chain_3": "vc3_name",
         "Risk": "risk_name", "Risk_ID": "risk_id",
         "Problem": "problem", "Details": "details",
     })
+    out["vc2_id"] = _first_non_empty_column(df, ["VC3_ID", "VC2_ID"])
+    out["vc2_name"] = _first_non_empty_column(df, ["Value Chain L3", "Sub-Value Chain", "Chuỗi giá trị 2"])
+    out["group_id"] = df["VC2_ID"] if "VC2_ID" in df.columns else None
+    out["group_name"] = df["Value Chain L2"] if "Value Chain L2" in df.columns else None
+    return out
 
 
-def get_risk_trigger_edges(workbook_bytes: bytes) -> pd.DataFrame:
-    """Quan he "rui ro nay co the kich hoat rui ro khac" (sheet Risk_Linkages) - CHI TIET
-    hon han 8_Risk_node cu (noi thang risk_id voi risk_id, kem mo ta co che + muc anh
-    huong, khong chi noi ten nhom chung chung). Da chot voi nguoi dung chuyen han sang dung
-    sheet nay. ⚠️ Hien CHI co 1 dong du lieu that (LNK-001) - do phu con rat thap, nguoi
-    dung da chap nhan dung tam trong luc cho bo sung them."""
-    df = _read_sheet(workbook_bytes, "Risk_Linkages")
-    return df.rename(columns={
-        "Source_Risk_ID": "source_risk_id", "Source_Risk_Name": "source_risk_name",
-        "Target_Risk_ID": "target_risk_id", "Target_Risk_Name": "target_risk_name",
-        "Mô tả cơ chế liên kết": "mechanism", "Mức độ ảnh hưởng": "impact_level",
-    }).dropna(subset=["source_risk_id", "target_risk_id"])
-
-
-def risks_triggered_by_vc2(vc2_id: str, vc2_df: pd.DataFrame, edges: pd.DataFrame) -> list[dict]:
-    """Danh sach rui ro CO THE BI KICH HOAT boi 1 hoat dong Chuoi gia tri (vc2_id) - tra ve
-    rong neu hoat dong chua gan rui ro nao, hoac rui ro do khong co quan he kich hoat nao
-    trong Risk_Linkages - KHONG tu suy dien. Dung truc tiep cho rui ro nhap (nguoi dung tu
-    chon 1 hoat dong thay vi co san risk_id)."""
-    source_ids = vc2_df.loc[vc2_df["vc2_id"] == vc2_id, "risk_id"].dropna().unique().tolist()
-    if not source_ids:
-        return []
-    hits = edges[edges["source_risk_id"].isin(source_ids)]
-    return hits[["target_risk_id", "target_risk_name", "mechanism", "impact_level"]].drop_duplicates().to_dict("records")
-
-
-def risks_triggered_by(risk_id: str, taxonomy: pd.DataFrame, vc2_df: pd.DataFrame, edges: pd.DataFrame) -> list[dict]:
-    """Nhu risks_triggered_by_vc2 nhung bat dau tu 1 risk_id da co trong Risk Register
-    (RR.xxxx) - tra qua VC2_ID (0. Danh muc rui ro) roi tra tiep nhu tren."""
-    vc2_rows = taxonomy.loc[taxonomy["risk_id"] == risk_id, "vc2_id"]
-    if vc2_rows.empty:
-        return []
-    return risks_triggered_by_vc2(vc2_rows.iloc[0], vc2_df, edges)
+def _first_non_empty_column(df: pd.DataFrame, candidates: list[str]) -> pd.Series:
+    """Tra ve cot dau tien trong danh sach CO DU LIEU THAT (khong rong hoan toan). Dung cho
+    cac truong hop Sheet1 doi ten cot nhung van GIU LAI cot cu rong lam vet tich - khong the
+    chi dua vao "cot co ton tai trong sheet" nhu cach rename() thong thuong, phai kiem tra co
+    du lieu that hay khong moi chon."""
+    for name in candidates:
+        if name in df.columns and df[name].notna().any():
+            return df[name]
+    for name in candidates:
+        if name in df.columns:
+            return df[name]
+    return pd.Series([None] * len(df), index=df.index)
 
 
 def get_rcm_risks(workbook_bytes: bytes) -> pd.DataFrame:
-    """Ma tran kiem soat rui ro (sheet '7_RCM', header dong dau tien) - nguon rui ro THU 3, tach
-    biet han risk_id RSK-xxx (Sheet1) va RR.xxxx (Risk Register): cot "Risk" o day la MO TA rui
-    ro theo danh muc (vd "3.4.2. Quan ly chinh sach ban hang, chiet khau", ma "Risk_category_ID"
-    = "RC-3.4"), khong phai 1 ma dinh danh rui ro. Gan theo cong ty (company_id: CADIVI/EMIC).
-    Noi sang Sheet1 qua VC2_ID - da xac minh khop 16/16.
+    """Ma tran kiem soat rui ro (sheet 'CADIVI_RCM', ten cu la "7_RCM" - da doi ten VA tach
+    rieng theo cong ty tren SharePoint, hien CHI co CADIVI, xem CLAUDE.md Muc 11.4) - nguon rui
+    ro THU 3, tach biet han risk_id RSK-xxx (2_VC_Master) va RR.xxxx (Risk Register): cot
+    "Risk" o day la MO TA rui ro theo danh muc (vd "3.4.2. Quan ly chinh sach ban hang, chiet
+    khau", ma "Risk_category_ID" = "RC-3.4"), khong phai 1 ma dinh danh rui ro.
+
+    ⚠️ QUAN TRONG - "vc2_id" o day la MA CAP NHOM NHO ("Value Chain L2" cua 2_VC_Master, vd
+    "FI-02"), KHONG PHAI ma hoat dong cu the (VC3, vd "FI-021") ma pages/2_Chuoi_gia_tri.py
+    dang hien thi chi tiet - da kiem tra truc tiep: 0/10 ma trong CADIVI_RCM khop voi VC3_ID,
+    10/10 khop voi VC2_ID cua 2_VC_Master. 1 nhom VC2 co the co NHIEU hoat dong VC3 con (vd
+    nhom "PR-01" co 5 hoat dong con) - da hoi nguoi dung, CHUA can gan rui ro nay xuong tung
+    hoat dong VC3 cu the (chi gan o cap nhom/khoi). VI VAY: cho nao dang so khop "vc2_id" cua
+    ham nay voi "vc2_id" cua get_value_chain_v2() (cap VC3) se KHONG BAO GIO khop - dung y,
+    KHONG phai loi - chi dung duoc o cap KHOI (vc1_id, xem rcm_block_health_color) cho toi khi
+    co quyet dinh khac.
 
     ⚠️ Doc theo VI TRI COT (khong theo ten) vi sheet co nhieu cot TRUNG TEN nhau giua khoi
     kiem soat Entity Level va Transaction Level (vd 2 cot "Mo ta kiem soat", va ten cot danh gia
@@ -161,7 +164,7 @@ def get_rcm_risks(workbook_bytes: bytes) -> pd.DataFrame:
     dong tho) - drop_duplicates tren (company_id, vc2_id, risk_desc, risk_category_id) de con
     dung cac rui ro duy nhat.
     """
-    df = _read_sheet(workbook_bytes, "7_RCM")
+    df = _read_sheet(workbook_bytes, "CADIVI_RCM")
     out = pd.DataFrame({
         "company_id": df.iloc[:, 0], "vc1_name": df.iloc[:, 1], "vc1_id": df.iloc[:, 2],
         "vc2_name": df.iloc[:, 3], "vc2_id": df.iloc[:, 4],
@@ -192,12 +195,14 @@ def companies_in(df: pd.DataFrame, companies: pd.DataFrame, id_columns: list[str
 
 
 def companies_with_data(
-    companies: pd.DataFrame, value_chain: pd.DataFrame, supply_chain: pd.DataFrame, risks: pd.DataFrame
+    companies: pd.DataFrame, supply_chain: pd.DataFrame, risks: pd.DataFrame
 ) -> set[str]:
-    """Cong ty co du lieu o BAT KY sheet nao (hop cua ca 3 nguon) - dung cho KPI tong quan
-    o trang chu. Cac trang rieng le nen dung companies_in() voi cot phu hop hon."""
+    """Cong ty co du lieu o BAT KY sheet nao (hop cua 2 nguon) - dung cho KPI tong quan o
+    trang chu. Cac trang rieng le nen dung companies_in() voi cot phu hop hon.
+
+    ⚠️ Truoc day gop them ca "2_Value_Chain_Master" - sheet do da bi xoa khoi workbook
+    nguon, khong co sheet thay the (xem CLAUDE.md Muc 11.5), da bo tham so nay."""
     return (
-        companies_in(value_chain, companies, ["company_id"])
-        | companies_in(risks, companies, ["company_id"])
+        companies_in(risks, companies, ["company_id"])
         | companies_in(supply_chain, companies, ["upstream_entity_id", "downstream_entity_id"])
     )
