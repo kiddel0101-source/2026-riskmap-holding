@@ -184,41 +184,80 @@ def show_activity_risks(
         if has_rcm:
             st.divider()
             st.markdown("**🗂️ Từ Ma trận kiểm soát rủi ro (7_RCM)**")
-            st.caption(
-                "🟢 Có hiệu lực & hiệu quả · 🟠 Có hiệu lực, không hiệu quả · "
-                "🔴 Không hiệu lực & không hiệu quả · ⚪ Chưa xác định / thiếu dữ liệu"
-            )
+            _rcm_legend()
             for _, r in rcm_risks.iterrows():
-                with st.container(border=True):
-                    head_l, head_r = st.columns([3, 2])
-                    head_l.markdown(f"**{nz(r.get('risk_desc'))}**")
-                    head_r.markdown(
-                        f"<div style='text-align:right;font-size:0.8rem'>"
-                        f"<span style='color:{risk_palette()['grey']}'>{nz(r.get('risk_category_id'))}</span> · "
-                        f"<span style='color:{risk_palette().get('low', '')}'>{nz(r.get('company_id'))}</span></div>",
-                        unsafe_allow_html=True,
-                    )
-                    if pd.notna(r.get("risk_details")):
-                        st.write(nz(r.get("risk_details")))
+                _render_rcm_card(r)
 
-                    ent_key = _rcm_effectiveness_key(r.get("ent_valid"), r.get("ent_effective"))
-                    tx_key = _rcm_effectiveness_key(r.get("tx_valid"), r.get("tx_effective"))
-                    c1, c2 = st.columns(2)
-                    with c1.expander(f"{_EFF_EMOJI[ent_key]} Entity Level"):
-                        for label, col in [
-                            ("Mô tả kiểm soát", "ent_control_desc"), ("Đầu mối xây dựng", "ent_owner"),
-                            ("Cấp phê duyệt", "ent_approval"), ("Mức độ bao phủ của kiểm soát", "ent_coverage"),
-                            ("Mức độ định lượng của kiểm soát", "ent_quant"), ("Tần suất cập nhật kiểm soát", "ent_frequency"),
-                        ]:
-                            st.caption(label)
-                            st.write(nz(r.get(col)))
-                    with c2.expander(f"{_EFF_EMOJI[tx_key]} Transaction Level"):
-                        for label, col in [
-                            ("Mô tả kiểm soát", "tx_control_desc"), ("Người soát xét", "tx_reviewer"),
-                            ("Người phê duyệt", "tx_approver"), ("Tần suất thực hiện", "tx_frequency"),
-                            ("Hình thức kiểm soát", "tx_form"), ("Nền tảng thực hiện", "tx_platform"),
-                        ]:
-                            st.caption(label)
-                            st.write(nz(r.get(col)))
+    _dialog()
+
+
+def _rcm_legend() -> None:
+    st.caption(
+        "🟢 Có hiệu lực & hiệu quả · 🟠 Có hiệu lực, không hiệu quả · "
+        "🔴 Không hiệu lực & không hiệu quả · ⚪ Chưa xác định / thiếu dữ liệu"
+    )
+
+
+def _render_rcm_card(r: pd.Series) -> None:
+    """Ve 1 the rui ro CADIVI_RCM (mo ta + danh muc + cong ty, 2 khung mo rong Entity/Transaction
+    Level) - dung chung giua show_activity_risks() (cap hoat dong VC3) va show_group_rcm_risks()
+    (cap nhom nho VC2). Moi khung co them 2 dong "Danh gia hieu luc"/"Danh gia hieu qua" (chinh la
+    2 gia tri dung de tinh mau emoji qua _rcm_effectiveness_key, truoc day chi an sau mau, gio hien
+    tuong minh - nguoi dung yeu cau khi xem mockup)."""
+    with st.container(border=True):
+        head_l, head_r = st.columns([3, 2])
+        head_l.markdown(f"**{nz(r.get('risk_desc'))}**")
+        head_r.markdown(
+            f"<div style='text-align:right;font-size:0.8rem'>"
+            f"<span style='color:{risk_palette()['grey']}'>{nz(r.get('risk_category_id'))}</span> · "
+            f"<span style='color:{risk_palette().get('low', '')}'>{nz(r.get('company_id'))}</span></div>",
+            unsafe_allow_html=True,
+        )
+        if pd.notna(r.get("risk_details")):
+            st.write(nz(r.get("risk_details")))
+
+        ent_key = _rcm_effectiveness_key(r.get("ent_valid"), r.get("ent_effective"))
+        tx_key = _rcm_effectiveness_key(r.get("tx_valid"), r.get("tx_effective"))
+        c1, c2 = st.columns(2)
+        with c1.expander(f"{_EFF_EMOJI[ent_key]} Entity Level"):
+            for label, col in [
+                ("Mô tả kiểm soát", "ent_control_desc"), ("Đầu mối xây dựng", "ent_owner"),
+                ("Cấp phê duyệt", "ent_approval"), ("Mức độ bao phủ của kiểm soát", "ent_coverage"),
+                ("Mức độ định lượng của kiểm soát", "ent_quant"), ("Tần suất cập nhật kiểm soát", "ent_frequency"),
+                ("Đánh giá hiệu lực", "ent_valid"), ("Đánh giá hiệu quả", "ent_effective"),
+            ]:
+                st.caption(label)
+                st.write(nz(r.get(col)))
+        with c2.expander(f"{_EFF_EMOJI[tx_key]} Transaction Level"):
+            for label, col in [
+                ("Mô tả kiểm soát", "tx_control_desc"), ("Người soát xét", "tx_reviewer"),
+                ("Người phê duyệt", "tx_approver"), ("Tần suất thực hiện", "tx_frequency"),
+                ("Hình thức kiểm soát", "tx_form"), ("Nền tảng thực hiện", "tx_platform"),
+                ("Đánh giá hiệu lực", "tx_valid"), ("Đánh giá hiệu quả", "tx_effective"),
+            ]:
+                st.caption(label)
+                st.write(nz(r.get(col)))
+
+
+def show_group_rcm_risks(rcm_risks: pd.DataFrame, subject_label: str, subject_sub: str = "") -> None:
+    """Hop thoai hien TOAN BO rui ro CADIVI_RCM cua 1 nhom nho (VC2, vd "OP-02") - dung khi bam
+    nut "Xem rui ro va kiem soat" tren luoi nhom trong pages/2_Chuoi_gia_tri.py.
+
+    Khac show_activity_risks(): KHONG co muc "Tu Sheet1" - o cap nhom KHONG co du lieu Sheet1
+    truc tiep (Sheet1 chi gan toi cap hoat dong cu the VC3), chi hien danh sach rui ro CADIVI_RCM
+    + chi tiet kiem soat Entity/Transaction Level, dung lai _render_rcm_card() y het."""
+
+    @st.dialog(subject_label)
+    def _dialog() -> None:
+        if subject_sub:
+            st.caption(subject_sub)
+
+        if rcm_risks.empty:
+            st.info("Chưa có rủi ro nào trong CADIVI_RCM gắn với nhóm này.")
+            return
+
+        _rcm_legend()
+        for _, r in rcm_risks.iterrows():
+            _render_rcm_card(r)
 
     _dialog()

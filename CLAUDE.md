@@ -550,3 +550,29 @@ trong mỗi cột của `st.columns()`).
   Reset ve `None` cung voi `_vc2_selected_group` khi doi khoi hoac bam "✕ Đóng".
 - `build_risk_by_function_bar_v2()` (bar chart "Rủi ro theo khối chức năng" o cuoi trang) VAN
   con dung Plotly nhu cu - KHONG lien quan toi thay doi nay, chi doi rieng phan 9 khoi VC1.
+
+### 11.8. Xem chi tiết rủi ro + chốt kiểm soát CADIVI_RCM ở cấp nhóm nhỏ (VC2)
+
+Người dùng phát hiện thực tế: ô nhóm "OP-02" hiện "1 rủi ro" (gộp Sheet1 + CADIVI_RCM, xem Mục
+11.6) nhưng không có hoạt động VC3 con nào bên dưới hiện rủi ro nào — vì rủi ro đó là của
+CADIVI_RCM, gắn ở cấp nhóm nhỏ (`vc2_id` của chính CADIVI_RCM, xem Mục 11.4), không có thông tin
+xuống được hoạt động cụ thể nào, nên trước đây **không có cách nào xem được rủi ro đó là gì**.
+
+- Trong `_render_block_expansion()` (`pages/2_Chuoi_gia_tri.py`), mỗi ô nhóm trên lưới VC2 nay có
+  thêm nút thứ 2 (dưới nút "Chọn nhóm"): `group_rcm_rows = rcm[rcm["vc2_id"] == g["group_id"]]`
+  → có dữ liệu → nút bấm được, nhãn `"🗂️ Xem rủi ro và kiểm soát (n)"`; KHÔNG có dữ liệu → nút
+  **vô hiệu hoá** (`disabled=True`), nhãn "Không có rủi ro/kiểm soát" — **cố ý giữ nguyên vị trí
+  thay vì ẩn hẳn**, để mọi ô trong cùng 1 hàng vẫn cao bằng nhau (không phá lại phần căn đều chiều
+  cao ô ở `_uniform_name_height()`, xem lần sửa trước Mục 11 gần nhất) — đã xác nhận với người
+  dùng qua mockup trước khi code.
+- `src/components/risk_dialog.py` tách phần vẽ 1 thẻ rủi ro CADIVI_RCM (trước đây nằm inline
+  trong vòng lặp cuối `show_activity_risks()`) ra hàm dùng chung `_render_rcm_card(r)`, và thêm
+  hàm mới `show_group_rcm_risks(rcm_risks, subject_label, subject_sub="")` — hộp thoại CHỈ hiện
+  danh sách rủi ro CADIVI_RCM của 1 nhóm (KHÔNG có mục "Từ Sheet1" như `show_activity_risks()`, vì
+  ở cấp nhóm không có dữ liệu Sheet1 trực tiếp — Sheet1 chỉ gắn tới cấp hoạt động VC3).
+- ⚠️ **Thêm 2 trường mới vào CẢ 2 khung mở rộng Entity/Transaction Level** (áp dụng cho MỌI nơi
+  dùng `_render_rcm_card`, kể cả hộp thoại rủi ro theo hoạt động cụ thể VC3 đã có từ Mục 11.4):
+  **"Đánh giá hiệu lực"** (`ent_valid`/`tx_valid`) và **"Đánh giá hiệu quả"** (`ent_effective`/
+  `tx_effective`) — 2 giá trị này TRƯỚC ĐÂY đã đọc sẵn để tính emoji màu qua
+  `_rcm_effectiveness_key()` nhưng CHƯA hiện tường minh, chỉ ẩn sau màu 🟢🟠🔴⚪; người dùng yêu
+  cầu hiện rõ khi xem mockup, đặt ở cuối danh sách trường mỗi khung.

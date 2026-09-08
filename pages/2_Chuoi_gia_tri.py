@@ -2,7 +2,12 @@ import math
 
 import streamlit as st
 
-from src.components.risk_dialog import rcm_block_health_color, rcm_group_health_color, show_activity_risks
+from src.components.risk_dialog import (
+    rcm_block_health_color,
+    rcm_group_health_color,
+    show_activity_risks,
+    show_group_rcm_risks,
+)
 from src.data import loader, repository
 from src.theme import chart_config, nz, risk_palette
 from src.viz.value_chain import build_risk_by_function_bar_v2
@@ -158,6 +163,16 @@ def _render_block_expansion(vc1_id: str) -> None:
                         ):
                             st.session_state["_vc2_selected_group"] = g["group_id"]
                             st.rerun()
+
+                        group_rcm_rows = rcm[rcm["vc2_id"] == g["group_id"]]
+                        if st.button(
+                            f"🗂️ Xem rủi ro và kiểm soát ({len(group_rcm_rows)})" if not group_rcm_rows.empty else "Không có rủi ro/kiểm soát",
+                            key=f"view_rcm_group_{g['group_id']}", disabled=group_rcm_rows.empty, width="stretch",
+                        ):
+                            show_group_rcm_risks(
+                                group_rcm_rows, f"{g['group_id']} — {nz(g.get('group_name'))}",
+                                f"{fn} · Ma trận kiểm soát rủi ro (CADIVI_RCM)",
+                            )
 
         if selected_group and selected_group in group_list:
             group_label = group_rows.loc[group_rows["group_id"] == selected_group, "group_name"].iloc[0]
