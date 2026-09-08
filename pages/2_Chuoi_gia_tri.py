@@ -1,9 +1,22 @@
+import math
+
 import streamlit as st
 
 from src.components.risk_dialog import rcm_block_health_color, rcm_group_health_color, show_activity_risks
 from src.data import loader, repository
 from src.theme import chart_config, nz, risk_palette
 from src.viz.value_chain import build_risk_by_function_bar_v2
+
+
+def _uniform_name_height(names, chars_per_line: int) -> str:
+    """Uoc luong chieu cao (em) DU cho ten DAI NHAT trong 1 luoi o, ap dung CHUNG cho moi o
+    trong luoi do - Streamlit khong tu can bang chieu cao giua cac cot doc lap trong
+    st.columns() (moi cot cao theo dung noi dung rieng no), nen ten ngan/dai khac nhau lam
+    cac o lech chieu cao, nut bam khong thang hang. `chars_per_line` la uoc luong tho (khong
+    do font that) - can chinh lai neu doi font-size/so cot."""
+    lines = [max(1, math.ceil(len(n) / chars_per_line)) for n in names if n]
+    max_lines = min(max(lines, default=1), 4)  # tran o 4 dong, tranh 1 ten qua dai keo ca luoi
+    return f"{max_lines * 1.3}em"
 
 st.title("⛓️ Chuỗi giá trị")
 st.caption(
@@ -113,20 +126,32 @@ def _render_block_expansion(vc1_id: str) -> None:
         group_counts = block_rows.groupby("group_id")["vc2_id"].nunique()
         group_list = group_rows["group_id"].tolist()
 
+        group_sheet1_risk = block_rows.assign(
+            _n=block_rows["vc2_id"].map(risk_counts).fillna(0)
+        ).groupby("group_id")["_n"].sum()
+        group_rcm_risk = rcm.groupby("vc2_id").size()
+        group_name_height = _uniform_name_height(group_rows["group_name"].fillna("").tolist(), chars_per_line=20)
+
         for i in range(0, len(group_list), GROUP_COLS):
             cols = st.columns(GROUP_COLS)
             for col, (_, g) in zip(cols, group_rows.iloc[i:i + GROUP_COLS].iterrows()):
                 with col:
                     g_color = rcm_group_health_color(g["group_id"], rcm)
                     n_act = int(group_counts.get(g["group_id"], 0))
+                    n_risk = int(group_sheet1_risk.get(g["group_id"], 0) + group_rcm_risk.get(g["group_id"], 0))
                     is_selected = selected_group == g["group_id"]
                     with st.container(border=True):
                         name_style = f"color:{g_color};" if g_color else ""
                         st.markdown(
-                            f"<div style='font-size:0.8rem;font-weight:600;min-height:2.6em;{name_style}'>{nz(g.get('group_name'))}</div>",
+                            f"<div style='font-size:0.8rem;font-weight:600;min-height:{group_name_height};{name_style}'>{nz(g.get('group_name'))}</div>",
                             unsafe_allow_html=True,
                         )
                         st.caption(f"{g['group_id']} · {n_act} hoạt động")
+                        risk_style = f"color:{palette['low']};font-weight:600;" if n_risk else f"color:{palette['grey']};"
+                        st.markdown(
+                            f"<div style='font-size:0.72rem;{risk_style}margin-top:-6px;margin-bottom:6px'>{n_risk} rủi ro</div>",
+                            unsafe_allow_html=True,
+                        )
                         if st.button(
                             "✓ Đang chọn" if is_selected else "Chọn nhóm",
                             key=f"group_{g['group_id']}", disabled=is_selected, width="stretch",
@@ -159,20 +184,29 @@ def _render_block_expansion(vc1_id: str) -> None:
 
 for band_label, ids in bands:
     st.markdown(f"**{band_label}**")
+    band_name_height = _uniform_name_height(
+        [vc1_id_to_name.get(vc1_id, vc1_id).upper() for vc1_id in ids], chars_per_line=16,
+    )
     cols = st.columns(len(ids))
     for col, vc1_id in zip(cols, ids):
         with col:
             fn = vc1_id_to_name.get(vc1_id, vc1_id)
             n_act = int(counts_by_vc1.get(vc1_id, 0))
+            n_risk = int(combined_by_block.get(vc1_id, 0))
             color = block_colors.get(vc1_id)
             is_active = selected_block_id == vc1_id
             with st.container(border=True):
                 name_style = f"color:{color};" if color else ""
                 st.markdown(
-                    f"<div style='font-size:0.82rem;font-weight:700;min-height:2.6em;{name_style}'>{fn.upper()}</div>",
+                    f"<div style='font-size:0.82rem;font-weight:700;min-height:{band_name_height};{name_style}'>{fn.upper()}</div>",
                     unsafe_allow_html=True,
                 )
                 st.caption(f"{n_act} hoạt động")
+                risk_style = f"color:{palette['low']};font-weight:600;" if n_risk else f"color:{palette['grey']};"
+                st.markdown(
+                    f"<div style='font-size:0.75rem;{risk_style}margin-top:-8px'>{n_risk} rủi ro</div>",
+                    unsafe_allow_html=True,
+                )
                 if st.button(
                     "✓ Đang chọn" if is_active else "Chọn khối",
                     key=f"block_{vc1_id}", disabled=is_active, width="stretch",
