@@ -663,3 +663,72 @@ trên cho MỌI dòng, không còn dòng nào lệch giữa 2 trục phân loạ
   (`rcm_group_health_color()`) đã xử lý an toàn (trả `None`, không crash) — đúng hành vi đã có từ
   Mục 11.4/11.6 cho trường hợp mã không khớp, không cần sửa gì thêm, chỉ cần biết đây là NGUYÊN
   NHÂN nếu sau này thấy 1 vài nhóm "thiếu" màu RCM dù trực giác thấy có dữ liệu liên quan.
+
+### 11.11. Sửa lỗi `risk_id` mất khỏi `4_Risk_Register` + thêm nguồn "Yếu tố dẫn phát" (Risk_Driver_Library)
+
+Người dùng yêu cầu gắn `Driver_name` (sheet mới `Risk_Driver_Library`) với rủi ro để trang Sự kiện
+rủi ro gợi ý thêm **ngành liên quan + rủi ro liên quan** khi tìm kiếm. Trong lúc điều tra phát hiện
+**lỗi nghiêm trọng đang có sẵn, không liên quan yêu cầu**: `4_Risk_Register` đã đổi cấu trúc — cột
+`risk_id` (mã cũ "RR.xxxx") **không còn tồn tại**, khiến MỌI tìm kiếm trên trang Sự kiện rủi ro
+khớp trúng 1 rủi ro sẽ **crash `KeyError: risk_id`** (đã xác minh bằng script test thật trước khi
+sửa). Đã hỏi lại người dùng cách xử lý cho cả 2 việc (qua AskUserQuestion).
+
+**Lỗi `risk_id`:**
+
+- `4_Risk_Register` nay có `Risk_category_ID` (mã "RC-x.y", CÙNG định dạng với
+  `CADIVI_RCM.risk_category_id`) + `Risk` (mô tả có số thứ tự đầu dòng, vd "2.1.1. Xây dựng chiến
+  lược..."), thay cho `risk_id`/`risk_category_l2` cũ. Các cột khác (`risk_category_l1`,
+  `risk_event_l3`, `root_cause`, `impact_description`, `impact_area`, `existing_controls`,
+  `status_rag`, `inherent/residual_*`, `risk_owner`, `review_cycle`, `company_id`, `sc_link_id`)
+  vẫn còn nguyên.
+- `repository.get_risks()` rename `"Risk"→risk_desc`, `"Risk_category_ID"→risk_category_id`, và TỰ
+  TÍNH `risk_id` mới bằng regex lấy số thứ tự đầu `risk_desc` (`^(\d+(?:\.\d+)+)`, vd "2.1.1")
+  — đã chốt với người dùng dùng cách này thay vì thêm cột trên Excel. Fallback
+  `f"{risk_category_id}-{index}"` nếu không tách được số (phòng hờ, không bao giờ trả `NaN`/trùng).
+- Đã cập nhật mọi nơi từng đọc `risk_category_l2` (nay không còn) sang `risk_desc`/
+  `risk_category_id`: `insights_event._RISK_FIELDS`, `risk_dialog.show_risk_profile()` (thêm
+  luôn 1 dòng mới hiện `risk_desc` — thông tin trước đây không có). `insights.py`, `viz/risk.py`,
+  `pages/3_Danh_muc_rui_ro.py`, `event_store.py` chỉ dùng `risk_id` (không quan tâm định dạng) nên
+  KHÔNG cần sửa.
+- ⚠️ Có cả `VC1_ID` (cột MỚI, viết hoa, đủ 13/13 dòng) lẫn `vc1_id` (cột CŨ, viết thường, chỉ
+  6/13 dòng có giá trị) tồn tại song song trên `4_Risk_Register` — VẾT TÍCH, CHƯA có code nào
+  dùng tới, không xử lý trong đợt này (có thể liên quan 1 tính năng tương lai nối rủi ro Risk
+  Register với khối VC1, cùng nhóm với cột mới `risk_scope` = "Hoạt động cụ thể"/"Vĩ mô - Toàn
+  ngành" cũng xuất hiện đợt này — đều chưa dùng).
+
+**Nguồn "Yếu tố dẫn phát" (Risk_Driver_Library):**
+
+- Sheet có 67 dòng dữ liệu (header dòng 4 Excel, `SHEET_HEADER_ROW["Risk_Driver_Library"] = 3`),
+  49 `driver_name` duy nhất theo khung PESTEL (`driver_category`: Politics/Economics/Social/
+  Technological/Environment/Legal). Quan hệ NHIỀU-NHIỀU: 1 driver lặp lại trên nhiều dòng (mỗi
+  dòng = 1 cặp driver–danh mục rủi ro), `driver_name`/`driver_details`/`driver_category` GIỐNG HỆT
+  nhau trên mọi dòng của cùng 1 driver. `Driver_ID` RỖNG HOÀN TOÀN — `driver_name` là khoá thực tế.
+- Cột `Industry_type` là 1 SỐ GHÉP NHIỀU CHỮ SỐ (KHÔNG phải số thập phân) — mỗi chữ số tra theo
+  chú thích ở dòng ví dụ đầu sheet: `repository.INDUSTRY_LEGEND` = {1: Sản xuất thiết bị điện,
+  2: VLXD, 3: BĐS, 4: Dự án BT, 5: Nước sạch, 6: Năng lượng}. Vd "16" = ngành 1 VÀ 6 (không phải
+  "mười sáu"), "123456" = cả 6 ngành. `repository.decode_industries(value)` tách/tra/khử trùng.
+  ⚠️ Nguồn của bảng tra này CHỈ là 1 dòng chú thích ví dụ trên sheet (không phải bảng cấu trúc) —
+  nếu người phụ trách dữ liệu đổi thứ tự/nội dung ngành, phải sửa `INDUSTRY_LEGEND` theo tay.
+- `Risk_category_ID` của sheet này khớp thật với `4_Risk_Register.risk_category_id` (đã xác minh
+  ít nhất 1 trường hợp: `RC-2.1`) — xác nhận 2 sheet CÙNG hệ mã danh mục, nhưng người dùng chốt
+  **KHÔNG cần join xuống rủi ro cụ thể** trong Risk Register — "rủi ro liên quan" hiển thị CHỈ lấy
+  thẳng `risk_category_l2` (mô tả danh mục, sheet đã đặt tên cột này sẵn) + `mechanism` (đổi tên
+  từ cột `"cơ chế tác động (driver -> risk)"`) ngay trong chính `Risk_Driver_Library` — đơn giản
+  hơn, không phụ thuộc độ chính xác nối 2 sheet.
+- `repository.get_risk_drivers()` đọc sheet dạng phẳng (1 dòng = 1 cặp driver-danh mục, y hệt cấu
+  trúc sheet). `insights_event._aggregate_drivers()` gộp lại theo `driver_name` TRƯỚC KHI dò từ
+  khóa thành 1 dòng/driver (`industries` = UNION `decode_industries()` trên MỌI dòng của driver đó
+  — đã gặp 3/49 driver ghi `Industry_type` không nhất quán giữa các dòng, xử lý bằng gộp không
+  chặn; `risk_links` = danh sách `{risk_category_id, risk_category_l2, mechanism}` theo từng dòng
+  gốc) — tránh dò trực tiếp trên df thô sẽ ra kết quả trùng lặp (vì driver_name/details lặp y hệt
+  trên N dòng của 1 driver).
+- `insights_event.scan_drivers_all()`/`group_driver_matches()` (dataclass `DriverMatch`) theo
+  đúng khuôn mẫu `scan_all()`/`group_matches()` hiện có (khớp chính xác trước, chỉ từ khóa chưa ra
+  gì mới thử khớp gần đúng bỏ dấu) — nhưng KHÔNG dùng chung `EventMatch`/`_scan_rows` vì hình dạng
+  dữ liệu khác hẳn (1 driver mang theo sẵn danh sách `industries`/`risk_links`, không phải join
+  đơn giản như risk/supply_chain).
+- `pages/4_Su_kien_rui_ro.py`: nhóm kết quả thứ 3 **"🧭 Yếu tố dẫn phát"** (badge PESTEL viết hoa
+  theo `driver_category`, chip ngành liên quan, danh sách danh mục rủi ro + cơ chế tác động, link
+  nguồn nếu có) — KHÔNG có checkbox xác nhận (giống nhóm Chuỗi cung ứng hiện tại, chỉ nhóm Rủi ro
+  Risk Register mới có xác nhận vào Danh mục rủi ro). Lịch sử sự kiện (`event_store`) thêm đếm
+  `"drivers"` vào `match_counts`, bảng lịch sử thêm cột "Yếu tố dẫn phát".

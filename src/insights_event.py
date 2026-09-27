@@ -1,6 +1,6 @@
-"""Do tu khoa (khong AI) tu 1 su kien nguoi dung nhap vao Risk Register / Supply Chain hien
-co, cho trang Su kien rui ro. Chi chi ra du lieu DA CO lien quan, khong tu suy dien them rui
-ro moi - moi ket qua phai giai thich duoc khop vi cot nao, tu khoa nao.
+"""Do tu khoa (khong AI) tu 1 su kien nguoi dung nhap vao Risk Register / Supply Chain / Risk
+Driver Library hien co, cho trang Su kien rui ro. Chi chi ra du lieu DA CO lien quan, khong tu
+suy dien them rui ro moi - moi ket qua phai giai thich duoc khop vi cot nao, tu khoa nao.
 
 ⚠️ Truoc day co them nguon "Value Chain" (dua vao sheet "2_Value_Chain_Master") - sheet do da
 bi xoa khoi workbook nguon, khong co sheet thay the, da bo nguon nay (xem CLAUDE.md Muc 11.5).
@@ -19,16 +19,18 @@ from dataclasses import dataclass
 import pandas as pd
 
 from src.config import COLUMN_LABELS
+from src.data.repository import decode_industries
 from src.theme import nz
 
 _RISK_FIELDS = [
-    "risk_category_l1", "risk_category_l2", "risk_event_l3",
+    "risk_category_l1", "risk_desc", "risk_event_l3",
     "root_cause", "impact_description", "impact_area", "existing_controls",
 ]
 _SC_FIELDS = [
     "input_output_type", "geographic_origin", "contract_type",
     "substitutability", "upstream_entity_id", "downstream_entity_id",
 ]
+_DRIVER_FIELDS = ["driver_category", "driver_name", "driver_details"]
 
 _SPLIT_PATTERN = re.compile(
     r"[,.;\n]| và | làm | khiến | gây | dẫn đến | do | vì ", flags=re.IGNORECASE
@@ -45,6 +47,22 @@ class EventMatch:
     snippet_html: str
     keyword: str
     is_exact: bool  # False = chi khop sau khi bo dau (co the khac nghia, can doc lai trich doan)
+
+
+@dataclass
+class DriverMatch:
+    """Khop tu khoa voi 1 yeu to dan phat (Risk_Driver_Library, xem CLAUDE.md Muc 11.11) - khac
+    EventMatch vi 1 driver co san san du lieu tong hop (nganh + danh sach danh muc rui ro lien
+    quan) ngay tu chinh no, khong can join/dem tu nguon khac."""
+    driver_name: str
+    driver_category: str
+    keyword: str
+    is_exact: bool
+    snippet_html: str
+    field_label: str
+    industries: list[str]
+    risk_links: list[dict]  # [{"risk_category_id":.., "risk_category_l2":.., "mechanism":..}]
+    source_url: str | None
 
 
 def strip_diacritics(text: str) -> str:
@@ -192,4 +210,101 @@ def group_matches(matches: list[EventMatch]) -> list[dict]:
             groups[key] = {"ref_id": m.ref_id, "label": m.label, "company_id": m.company_id, "items": []}
             order.append(key)
         groups[key]["items"].append(m)
+    return [groups[k] for k in order]
+
+
+def _aggregate_drivers(drivers: pd.DataFrame) -> pd.DataFrame:
+    """Risk_Driver_Library co 1 dong = 1 CAP (driver, danh muc rui ro) - 1 driver lap lai tren
+    nhieu dong voi driver_name/details/category GIONG HET nhau (xem CLAUDE.md Muc 11.11). Neu
+    do tu khoa truc tiep tren df tho, 1 driver co N dong se ra N ket qua trung lap vo ich (cung
+    trich doan). Gop truoc thanh 1 dong/driver: `industries` = UNION decode_industries() tren
+    MOI dong (da gap 3/49 driver ghi Industry_type khong nhat quan giua cac dong - gop khong
+    chan), `risk_links` = danh sach {risk_category_id, risk_category_l2, mechanism} theo tung
+    dong goc cua driver do."""
+    if drivers.empty:
+        return drivers
+
+    rows = []
+    for name, g in drivers.groupby("driver_name", sort=False):
+        industries: list[str] = []
+        for v in g.get("industry_type", []):
+            for ind in decode_industries(v):
+                if ind not in industries:
+                    industries.append(ind)
+        risk_links = [
+            {
+                "risk_category_id": r.get("risk_category_id"),
+                "risk_category_l2": r.get("risk_category_l2"),
+                "mechanism": r.get("mechanism"),
+            }
+            for _, r in g.iterrows()
+            if pd.notna(r.get("risk_category_l2")) or pd.notna(r.get("mechanism"))
+        ]
+        first = g.iloc[0]
+        rows.append({
+            "driver_name": name,
+            "driver_category": first.get("driver_category"),
+            "driver_details": first.get("driver_details"),
+            "industries": industries,
+            "risk_links": risk_links,
+            "source_url": next((u for u in g.get("source_url", []) if pd.notna(u)), None),
+        })
+    return pd.DataFrame(rows)
+
+
+def _scan_drivers(drivers_agg: pd.DataFrame, keywords: list[str], *, loose: bool) -> list[DriverMatch]:
+    kws = [k for k in keywords if k.strip()]
+    matches: list[DriverMatch] = []
+    for _, row in drivers_agg.iterrows():
+        matched_cols: set[str] = set()
+        for col in _DRIVER_FIELDS:
+            if col not in row or pd.isna(row[col]) or col in matched_cols:
+                continue
+            text = str(row[col])
+            if not text.strip():
+                continue
+            for kw in kws:
+                snippet = _snippet_html(text, kw, loose=loose)
+                if snippet:
+                    matches.append(DriverMatch(
+                        driver_name=row["driver_name"], driver_category=nz(row.get("driver_category")),
+                        keyword=kw, is_exact=not loose, snippet_html=snippet,
+                        field_label=COLUMN_LABELS.get(col, col),
+                        industries=row["industries"], risk_links=row["risk_links"],
+                        source_url=row.get("source_url"),
+                    ))
+                    matched_cols.add(col)
+                    break
+    return matches
+
+
+def scan_drivers_all(drivers: pd.DataFrame, keywords: list[str]) -> list[DriverMatch]:
+    """Khop chinh xac truoc, tu khoa nao khong ra ket qua moi thu lai bang khop gan dung (bo
+    dau) - dung 2 tang giong scan_all(). Tu gop driver truoc khi do (xem _aggregate_drivers)."""
+    agg = _aggregate_drivers(drivers)
+    if agg.empty:
+        return []
+    exact = _scan_drivers(agg, keywords, loose=False)
+    exact_keywords = {m.keyword for m in exact}
+    remaining = [k for k in keywords if k not in exact_keywords]
+    if not remaining:
+        return exact
+    loose = _scan_drivers(agg, remaining, loose=True)
+    return exact + loose
+
+
+def group_driver_matches(matches: list[DriverMatch]) -> list[dict]:
+    """Gop nhieu DriverMatch cua CUNG 1 driver (vd khop ca driver_name lan driver_details)
+    thanh 1 nhom - 1 the/driver duy nhat."""
+    groups: dict[str, dict] = {}
+    order: list[str] = []
+    for m in matches:
+        if m.driver_name not in groups:
+            groups[m.driver_name] = {
+                "driver_name": m.driver_name, "driver_category": m.driver_category,
+                "industries": m.industries, "risk_links": m.risk_links,
+                "source_url": m.source_url, "items": [],
+            }
+            order.append(m.driver_name)
+        groups[m.driver_name]["items"].append(m)
     return [groups[k] for k in order]

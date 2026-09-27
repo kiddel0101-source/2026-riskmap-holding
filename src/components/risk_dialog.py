@@ -115,7 +115,8 @@ def show_risk_profile(risks: pd.DataFrame, subject_label: str, subject_sub: str 
                     unsafe_allow_html=True,
                 )
 
-                st.caption(f"{nz(r.get('risk_category_l1'))} · {nz(r.get('risk_category_l2'))}")
+                st.caption(f"{nz(r.get('risk_category_l1'))} · {nz(r.get('risk_category_id'))}")
+                st.write(f"**Danh mục rủi ro:** {nz(r.get('risk_desc'))}")
                 st.write(f"**Sự kiện rủi ro:** {nz(r.get('risk_event_l3'))}")
                 st.write(f"**Nguyên nhân gốc:** {nz(r.get('root_cause'))}")
                 st.write(f"**Mô tả tác động:** {nz(r.get('impact_description'))}")

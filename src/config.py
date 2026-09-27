@@ -29,6 +29,9 @@ SHEET_HEADER_ROW = {
     # Ten cu la "7_RCM", da doi ten thanh "{Ten cong ty}_RCM" - hien CHI co "CADIVI_RCM"
     # (nguoi dung xac nhan chua co cong ty nao khac), tach theo tung cong ty tren SharePoint.
     "CADIVI_RCM": 2,
+    # Cac yeu to dan phat (PESTEL) noi voi danh muc rui ro (xem CLAUDE.md Muc 11.11) - header
+    # o dong 4 Excel (2 dong tieu de + 1 dong vi du minh hoa phia tren), da kiem tra truc tiep.
+    "Risk_Driver_Library": 3,
 }
 
 RAG_COLORS = {
@@ -71,7 +74,12 @@ COLUMN_LABELS = {
     # risk
     "risk_id": "Mã rủi ro",
     "risk_category_l1": "Nhóm rủi ro",
-    "risk_category_l2": "Loại rủi ro",
+    "risk_category_id": "Danh mục rủi ro",
+    "risk_desc": "Mô tả (theo danh mục)",
+    # yeu to dan phat (Risk_Driver_Library)
+    "driver_category": "Nhóm PESTEL",
+    "driver_name": "Tên yếu tố dẫn phát",
+    "driver_details": "Chi tiết yếu tố dẫn phát",
     "risk_event_l3": "Sự kiện rủi ro",
     "root_cause": "Nguyên nhân gốc",
     "impact_description": "Mô tả tác động",

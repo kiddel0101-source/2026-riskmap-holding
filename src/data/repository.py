@@ -1,8 +1,11 @@
 import io
+import re
 
 import pandas as pd
 
 from src.config import SHEET_HEADER_ROW
+
+_RISK_ID_PATTERN = re.compile(r"^(\d+(?:\.\d+)+)")
 
 
 def _read_sheet(workbook_bytes: bytes, sheet: str) -> pd.DataFrame:
@@ -66,7 +69,82 @@ def get_supply_chain(workbook_bytes: bytes) -> pd.DataFrame:
 
 
 def get_risks(workbook_bytes: bytes) -> pd.DataFrame:
-    return _read_sheet(workbook_bytes, "4_Risk_Register")
+    """4_Risk_Register. ⚠️ Sheet nay da doi cau truc (xac minh truc tiep 2026-09-27, xem
+    CLAUDE.md Muc 11.11): cot `risk_id` (ma "RR.xxxx") KHONG CON TON TAI - thay vao do co
+    `Risk_category_ID` (ma "RC-x.y", cung dinh dang voi CADIVI_RCM) + `Risk` (mo ta co so thu
+    tu dau dong, vd "2.1.1. Xay dung chien luoc..."). Cac cot khac (risk_category_l1,
+    risk_event_l3, root_cause, impact_description, impact_area, existing_controls, status_rag,
+    inherent/residual_*, risk_owner, review_cycle, company_id, sc_link_id) van con nguyen.
+
+    Vi risk_id da mat va nhieu noi trong app dang dung no lam khoa dinh danh (xac nhan su kien,
+    hop thoai chi tiet...), ham nay TU TINH lai risk_id tu so thu tu co san dau `risk_desc`
+    (doi tu cot "Risk") - da xac nhan voi nguoi dung day la cach chap nhan duoc, khong can them
+    cot moi tren Excel. Fallback (risk_category_id + so thu tu dong) neu khong tach duoc so, de
+    khong bao gio tra NaN/trung - dung lap lai loi am tham crash da gap truoc day.
+
+    ⚠️ Co ca `VC1_ID` (cot MOI, viet hoa) lan `vc1_id` (cot CU, viet thuong, chi 6/13 dong co
+    gia tri) - VET TICH, chua co code nao dung toi, KHONG xu ly trong ham nay."""
+    df = _read_sheet(workbook_bytes, "4_Risk_Register")
+    out = df.rename(columns={"Risk": "risk_desc", "Risk_category_ID": "risk_category_id"})
+    risk_ids = []
+    for idx, row in out.iterrows():
+        m = _RISK_ID_PATTERN.match(str(row.get("risk_desc"))) if pd.notna(row.get("risk_desc")) else None
+        risk_ids.append(m.group(1) if m else f"{row.get('risk_category_id', 'RC-?')}-{idx}")
+    out["risk_id"] = risk_ids
+    return out
+
+
+# Chu thich vi du o dau sheet Risk_Driver_Library (KHONG phai 1 bang cau truc, chi la 1 dong
+# vi du) - da xac nhan cach doc voi nguoi dung (Muc 11.11): "1 2 3 4 5 6" theo dung thu tu
+# "Sản xuất thiết bị điện=1, VLXD=2, BĐS=3, Dự án BT=4, Nước sạch=5, Năng lượng=6". Neu nguoi
+# phu trach du lieu doi lai chu thich nay tren SharePoint, phai doi ca hang so nay theo.
+INDUSTRY_LEGEND = {
+    "1": "Sản xuất thiết bị điện", "2": "VLXD", "3": "BĐS",
+    "4": "Dự án BT", "5": "Nước sạch", "6": "Năng lượng",
+}
+
+
+def decode_industries(value) -> list[str]:
+    """Industry_type trong Risk_Driver_Library la 1 SO GHEP NHIEU CHU SO (khong phai so thap
+    phan) - vd "16" nghia la nganh 1 VA nganh 6 (khong phai "muoi sau"), "123456" nghia la ca
+    6 nganh. Tach tung ky tu, tra INDUSTRY_LEGEND, bo qua ky tu la, khu trung giu dung thu tu
+    xuat hien dau tien."""
+    if pd.isna(value):
+        return []
+    text = str(value)
+    if text.endswith(".0"):
+        text = text[:-2]
+    out: list[str] = []
+    for ch in text:
+        name = INDUSTRY_LEGEND.get(ch)
+        if name and name not in out:
+            out.append(name)
+    return out
+
+
+def get_risk_drivers(workbook_bytes: bytes) -> pd.DataFrame:
+    """Risk_Driver_Library - cac yeu to dan phat (PESTEL: Politics/Economics/Social/
+    Technological/Environment/Legal) noi voi danh muc rui ro qua `risk_category_id` (CUNG dinh
+    dang "RC-x.y" voi 4_Risk_Register/CADIVI_RCM - da xac minh khop that it nhat 1 truong hop
+    RC-2.1, xem CLAUDE.md Muc 11.11). Nguoi dung xac nhan CHUA can join xuong rui ro cu the
+    trong Risk Register - chi dung risk_category_l2 (mo ta danh muc) + mechanism co san ngay
+    trong chinh sheet nay.
+
+    1 dong = 1 CAP (driver, danh muc rui ro) - 1 driver (driver_name) co the lap lai tren
+    NHIEU dong (quan he nhieu-nhieu, dung y thiet ke cua sheet, KHONG phai loi trung dong).
+    `Driver_ID` rong hoan toan nen KHONG dung duoc lam khoa - `driver_name` la khoa thuc te."""
+    df = _read_sheet(workbook_bytes, "Risk_Driver_Library")
+    out = df.rename(columns={
+        "Driver_category": "driver_category", "Driver_name": "driver_name",
+        "Driver_details": "driver_details", "Industry_type": "industry_type",
+        "Risk_category_ID": "risk_category_id", "cơ chế tác động (driver -> risk)": "mechanism",
+        "Nguồn": "source_url",
+    })
+    cols = [
+        "driver_category", "driver_name", "driver_details", "industry_type",
+        "risk_category_l2", "risk_category_id", "mechanism", "source_url",
+    ]
+    return out[[c for c in cols if c in out.columns]].dropna(subset=["driver_name"])
 
 
 def risk_counts_by_sc_link(risks: pd.DataFrame) -> pd.Series:

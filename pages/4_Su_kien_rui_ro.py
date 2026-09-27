@@ -7,10 +7,10 @@ from src.theme import risk_palette
 
 st.title("🌐 Sự kiện rủi ro")
 st.caption(
-    "Nhập diễn giải 1 sự kiện thời sự/vĩ mô, hệ thống dò từ khóa trực tiếp trong Risk Register "
-    "và Chuỗi cung ứng hiện có — chỉ ra chỗ nào **đã có dữ liệu** liên quan, kèm trích đoạn để "
-    "thấy rõ vì sao khớp. Không dùng AI, không tự suy diễn thêm rủi ro mới — nếu từ khóa không "
-    "có trong dữ liệu, hệ thống sẽ nói thẳng thay vì đoán."
+    "Nhập diễn giải 1 sự kiện thời sự/vĩ mô, hệ thống dò từ khóa trực tiếp trong Risk Register, "
+    "Chuỗi cung ứng và Thư viện yếu tố dẫn phát hiện có — chỉ ra chỗ nào **đã có dữ liệu** liên "
+    "quan, kèm trích đoạn để thấy rõ vì sao khớp. Không dùng AI, không tự suy diễn thêm rủi ro "
+    "mới — nếu từ khóa không có trong dữ liệu, hệ thống sẽ nói thẳng thay vì đoán."
 )
 
 if event_store.is_using_default_storage():
@@ -29,6 +29,7 @@ except loader.WorkbookFetchError as exc:
 companies = repository.get_companies(workbook_bytes)
 supply_chain = repository.get_supply_chain(workbook_bytes)
 risks = repository.get_risks(workbook_bytes)
+drivers = repository.get_risk_drivers(workbook_bytes)
 member_company_ids = set(companies["company_id"].dropna().astype(str))
 
 
@@ -41,6 +42,7 @@ def _gkey(g: dict) -> str:
 _SOURCE_META = {
     "risk": ("🛑", "Rủi ro trong Risk Register"),
     "supply_chain": ("🔗", "Liên kết trong Chuỗi cung ứng"),
+    "driver": ("🧭", "Yếu tố dẫn phát"),
 }
 
 
@@ -49,6 +51,7 @@ def _ensure_saved(result: dict) -> int:
         counts = {
             "risks": len(result["risk_matches"]),
             "supply_chain": len(result["sc_matches"]),
+            "drivers": len(result["driver_matches"]),
         }
         result["saved_event_id"] = event_store.save_event(result["description"], result["keywords"], counts)
     return result["saved_event_id"]
@@ -79,6 +82,48 @@ def _render_risk_group(g: dict, key_prefix: str) -> str:
     return ck_key
 
 
+_DRIVER_CATEGORY_LABEL = {
+    "Politics": "POLITICS", "Economics": "ECONOMICS", "Social": "SOCIAL",
+    "Technological": "TECHNOLOGICAL", "Environment": "ENVIRONMENT", "Legal": "LEGAL",
+}
+
+
+def _render_driver_group(g: dict) -> None:
+    with st.container(border=True):
+        c1, c2 = st.columns([3, 1])
+        c1.markdown(f"**{g['driver_name']}**")
+        badge = _DRIVER_CATEGORY_LABEL.get(g["driver_category"], g["driver_category"] or "—")
+        c2.markdown(
+            f"<div style='text-align:right;color:{risk_palette()['grey']};font-size:0.8rem;"
+            f"font-weight:700'>{badge}</div>",
+            unsafe_allow_html=True,
+        )
+        for m in g["items"]:
+            st.markdown(f"<div style='font-size:0.9rem'>{m.snippet_html}</div>", unsafe_allow_html=True)
+            why = f"Khớp từ khóa **{m.keyword}** trong cột **{m.field_label}**"
+            if not m.is_exact:
+                why += " · ⚠️ khớp gần đúng (không phân biệt dấu) — có thể khác nghĩa, hãy đọc kỹ trích đoạn"
+            st.caption(why)
+
+        if g["industries"]:
+            st.caption("**Ngành liên quan:** " + " · ".join(g["industries"]))
+
+        if g["risk_links"]:
+            st.markdown(f"**Danh mục rủi ro liên quan ({len(g['risk_links'])})**")
+            for link in g["risk_links"]:
+                cat_id = link.get("risk_category_id") or "—"
+                cat_l2 = link.get("risk_category_l2") or "—"
+                st.markdown(
+                    f"<div style='border-left:3px solid {risk_palette()['low']};padding:4px 0 4px 10px;"
+                    f"margin-top:4px;font-size:0.85rem'><b>{cat_id} — {cat_l2}</b><br>"
+                    f"<span style='color:{risk_palette()['grey']}'>{link.get('mechanism') or ''}</span></div>",
+                    unsafe_allow_html=True,
+                )
+
+        if g["source_url"]:
+            st.markdown(f"[🔗 Nguồn tham khảo]({g['source_url']})")
+
+
 def _handle_confirm(risk_groups: list[dict], key_prefix: str, result: dict) -> None:
     if st.button("✅ Xác nhận & đưa vào Danh mục rủi ro", key=f"confirm_btn_{key_prefix}"):
         event_id = _ensure_saved(result)
@@ -98,7 +143,8 @@ def _handle_confirm(risk_groups: list[dict], key_prefix: str, result: dict) -> N
 
 def _render_matches(result: dict, key_prefix: str) -> None:
     risk_matches, sc_matches = result["risk_matches"], result["sc_matches"]
-    total = len(risk_matches) + len(sc_matches)
+    driver_matches = result["driver_matches"]
+    total = len(risk_matches) + len(sc_matches) + len(driver_matches)
     if total == 0:
         st.info(
             "🔍 Không tìm thấy dữ liệu nào chứa các từ khóa đã nhập. Hệ thống chỉ dò chữ có sẵn, "
@@ -109,8 +155,15 @@ def _render_matches(result: dict, key_prefix: str) -> None:
 
     risk_groups = insights_event.group_matches(risk_matches)
     sc_groups = insights_event.group_matches(sc_matches)
+    driver_groups = insights_event.group_driver_matches(driver_matches)
 
     st.caption(f"**{total} mục khớp**")
+
+    if driver_groups:
+        icon, title = _SOURCE_META["driver"]
+        st.markdown(f"**{icon} {title} ({len(driver_groups)})**")
+        for g in driver_groups:
+            _render_driver_group(g)
 
     if risk_groups:
         icon, title = _SOURCE_META["risk"]
@@ -147,6 +200,7 @@ def _run_scan(description: str, keywords: list[str]) -> dict:
         "keywords": keywords,
         "risk_matches": matched["risk"],
         "sc_matches": matched["supply_chain"],
+        "driver_matches": insights_event.scan_drivers_all(drivers, keywords),
         "saved_event_id": None,
     }
 
@@ -194,6 +248,7 @@ else:
             "Từ khóa": ", ".join(e["keywords"]),
             "Rủi ro": e["match_counts"].get("risks", 0),
             "Chuỗi cung ứng": e["match_counts"].get("supply_chain", 0),
+            "Yếu tố dẫn phát": e["match_counts"].get("drivers", 0),
         }
         for e in events
     ])
