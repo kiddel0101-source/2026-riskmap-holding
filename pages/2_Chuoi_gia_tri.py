@@ -24,12 +24,11 @@ def _uniform_name_height(names, chars_per_line: int) -> str:
 
 st.title("⛓️ Chuỗi giá trị")
 st.caption(
-    "Mô hình Chuỗi giá trị Porter chuẩn — **9 khối, dùng chung cho toàn Tập đoàn** (nguồn: "
-    "2_VC_Master), không phân theo công ty. Hàng trên là 5 khối **hoạt động chính**, hàng dưới "
-    "là 4 khối **hoạt động hỗ trợ**. Khối có màu (xanh/vàng/cam/đỏ) nếu có dữ liệu Ma trận "
-    "kiểm soát rủi ro (CADIVI_RCM) — nguồn rủi ro DUY NHẤT trên trang này — bấm vào 1 khối để "
-    "xem lưới nhóm hoạt động (VC2) ngay bên dưới, rồi bấm 1 nhóm để xem chi tiết rủi ro và "
-    "kiểm soát."
+    "Mô hình Chuỗi giá trị Porter chuẩn — **dùng chung cho toàn Tập đoàn** (nguồn: 2_VC_Master), "
+    "không phân theo công ty. Hàng trên là các khối **hoạt động chính**, hàng dưới là các khối "
+    "**hoạt động hỗ trợ**. Khối có màu (xanh/vàng/cam/đỏ) nếu có dữ liệu Ma trận kiểm soát rủi "
+    "ro (CADIVI_RCM) — nguồn rủi ro DUY NHẤT trên trang này — bấm vào 1 khối để xem lưới nhóm "
+    "hoạt động (VC2) ngay bên dưới, rồi bấm 1 nhóm để xem chi tiết rủi ro và kiểm soát."
 )
 
 try:

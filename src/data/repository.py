@@ -19,11 +19,17 @@ def _read_sheet(workbook_bytes: bytes, sheet: str) -> pd.DataFrame:
 # ("Vận hành / Sản xuất" -> "Sản xuất", "Marketing & Bán hàng" -> "Bán hàng", "Thu mua" ->
 # "Mua hàng"...) trong khi ma (IL/OP/OL/MS/SV/PR/TD/FI/HR, cung la tien to cua vc2_id nhu
 # "OP-001") on dinh qua tat ca cac lan doi ten.
-VC1_ID_ORDER = ["IL", "OP", "OL", "MS", "SV", "PR", "TD", "FI", "HR"]
-# 5 ma CHINH (Primary) + 4 ma HO TRO (Support) theo dung khung Porter - day la phan loai o CAP
+# ⚠️ Nguoi dung yeu cau cap nhat lai co cau 9->10 khoi tren chinh file Excel nguon (khong phai
+# doi code truoc) - da xac minh truc tiep tren workbook that (2026-09-27): khoi "Hậu cần đầu
+# vào"/"Hậu cần đầu ra" (IL/OL) khong con nua; "Cơ sở hạ tầng doanh nghiệp" (FI cu, 67 hoat dong)
+# da duoc tach thanh 4 khoi rieng: FA "TCKT" (28), FI moi "Cơ sở hạ tầng" (12), GC "Quản trị
+# chung" (27), HR "Nhân sự" (16, doi ten tu "Quản trị nguồn nhân lực"); them khoi moi RD "Phát
+# triển sản phẩm" (7). Da doi chieu cot "category" (Chinh/Ho tro) cua tung dong VC3 - khop 100%
+# voi phan loai duoi day, khong con dong nao lech giua 2 khoi cung 1 vc1_id.
+VC1_ID_ORDER = ["RD", "PR", "OP", "MS", "SV", "TD", "FA", "HR", "GC", "FI"]
+# 5 ma CHINH (Primary) + 5 ma HO TRO (Support) theo dung khung Porter - day la phan loai o CAP
 # KHOI, khac voi cot "category" (Phan loai Chinh/Ho tro) trong tung dong du lieu von la phan
-# loai o CAP HOAT DONG (vd hoat dong "PR-003" thuoc khoi Ho tro "Mua hàng" nhung ban than no
-# van co the duoc gan category="Hỗ trợ" trong du lieu - 2 truc doc lap nhau).
+# loai o CAP HOAT DONG (2 truc DOC LAP nhau, tuy hien dang khop nhau 100% cho lan cap nhat nay).
 VC1_PRIMARY_IDS = set(VC1_ID_ORDER[:5])
 
 

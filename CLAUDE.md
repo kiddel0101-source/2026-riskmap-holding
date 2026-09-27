@@ -617,3 +617,49 @@ VC1→VC2→VC3** (không đổi) — chỉ bỏ phần dữ liệu rủi ro nh�
   hỏi rõ PHẠM VI trước khi sửa (Mục nào giữ/mục nào bỏ hẳn) — trang này có tới 5 chỗ phụ thuộc dữ
   liệu đó (KPI, hotspot, màu/đếm ô khối-nhóm, danh sách VC3, khối chi tiết + biểu đồ cuối trang),
   không thể đoán 1 câu ngắn gọn ứng với toàn bộ 5 chỗ theo cùng 1 cách.
+
+### 11.10. Đổi cơ cấu 9→10 khối VC1 — người dùng cập nhật NGAY TRÊN file Excel nguồn
+
+Người dùng muốn đổi lại cơ cấu khối chức năng (khác hẳn 9 khối Porter gốc ở Mục 11.3) — khi được
+hỏi cách xử lý (đổi tên/gộp/tách khối không khớp cấu trúc dữ liệu hiện tại), người dùng chọn:
+**tự cập nhật trực tiếp trên file Excel nguồn** (`2_VC_Master` trên SharePoint) rồi báo lại, thay
+vì để code cố map/suy diễn cấu trúc mới. ⚠️ Đây là lần đầu người dùng chủ động sửa NGUỒN thay vì
+yêu cầu sửa code khi cơ cấu đổi — đúng tinh thần app "chỉ đọc, không tự suy diễn cấu trúc dữ liệu".
+
+Đã xác minh trực tiếp trên workbook thật SAU khi người dùng báo "xong rồi" (2026-09-27) — **10
+khối** (trước là 9): khối "Hậu cần đầu vào"/"Hậu cần đầu ra" (mã cũ `IL`/`OL`) không còn nữa;
+khối "Cơ sở hạ tầng doanh nghiệp" cũ (67 hoạt động) đã tách thành 4 khối riêng; thêm 1 khối mới
+"Phát triển sản phẩm". Mã khối (`vc1_id`) VÀ tên hiển thị (`vc1_name`) mới:
+
+| `vc1_id` | Tên hiển thị | Số hoạt động | Nhóm (Chính/Hỗ trợ) |
+|---|---|---|---|
+| `RD` | Phát triển sản phẩm | 7 | Chính |
+| `PR` | Mua hàng | 7 | Chính |
+| `OP` | Sản xuất | 9 | Chính |
+| `MS` | Bán hàng | 32 | Chính |
+| `SV` | Dịch vụ sau bán hàng | 25 | Chính |
+| `TD` | Phát triển công nghệ | 24 | Hỗ trợ |
+| `FA` | TCKT (Tài chính kế toán, tên viết tắt LẤY THẲNG TỪ SHEET, không tự đổi thành tên đầy đủ) | 28 | Hỗ trợ |
+| `HR` | Nhân sự (đổi tên từ "Quản trị nguồn nhân lực") | 16 | Hỗ trợ |
+| `GC` | Quản trị chung | 27 | Hỗ trợ |
+| `FI` | Cơ sở hạ tầng (đổi tên từ "Cơ sở hạ tầng doanh nghiệp", SỐ HOẠT ĐỘNG giảm mạnh 67→12 vì 3 khối FA/GC/HR đã tách ra khỏi khối này) | 12 | Hỗ trợ |
+
+Đã đối chiếu cột `category` (Chính/Hỗ trợ ở CẤP HOẠT ĐỘNG, xem Mục 11.7) — khớp 100% với bảng
+trên cho MỌI dòng, không còn dòng nào lệch giữa 2 trục phân loại như cảnh báo cũ trong code.
+
+- `repository.VC1_ID_ORDER`/`VC1_PRIMARY_IDS` (Mục 11.7) cập nhật theo đúng bảng trên, giữ nguyên
+  cơ chế cũ (`VC1_PRIMARY_IDS = set(VC1_ID_ORDER[:5])` — 5 mã đầu là Chính, xếp đúng thứ tự người
+  dùng nêu: Phát triển sản phẩm → Mua hàng → Sản xuất → Bán hàng → Dịch vụ sau bán hàng; 5 mã sau
+  là Hỗ trợ: Phát triển công nghệ → TCKT → Nhân sự → Quản trị chung → Cơ sở hạ tầng).
+- `pages/2_Chuoi_gia_tri.py` — câu caption đầu trang từng ghi cứng **"9 khối... 5 khối hoạt động
+  chính... 4 khối hoạt động hỗ trợ"** (số liệu SAI ngay khi đổi thành 10 khối) đã sửa bỏ hẳn số
+  đếm cứng, chỉ còn mô tả chung "các khối hoạt động chính/hỗ trợ" — tránh lặp lại lỗi hardcode số
+  lượng khối, vì con số này đã đổi 2 lần trong dự án (7→9→10) và có thể đổi tiếp.
+- ⚠️ **Phát hiện đứt gãy dữ liệu PHỤ (chưa cần sửa, chỉ ghi nhận):** sau khi `2_VC_Master` tách
+  nhỏ khối "Cơ sở hạ tầng doanh nghiệp" cũ, 1 số mã nhóm nhỏ (`vc2_id`/group) mà `CADIVI_RCM` còn
+  tham chiếu (`FI-02`, `FI-17`, `FI-19`, `FI-20`, `TD-02`) **không còn tồn tại** trong cấu trúc
+  nhóm mới của `2_VC_Master` (khối `FI` mới chỉ còn nhóm `FI-14/15/16`) — các nhóm này thuộc dữ
+  liệu CADIVI_RCM đã lỗi thời, chưa được cập nhật theo cơ cấu Excel mới. Cơ chế hiện tại
+  (`rcm_group_health_color()`) đã xử lý an toàn (trả `None`, không crash) — đúng hành vi đã có từ
+  Mục 11.4/11.6 cho trường hợp mã không khớp, không cần sửa gì thêm, chỉ cần biết đây là NGUYÊN
+  NHÂN nếu sau này thấy 1 vài nhóm "thiếu" màu RCM dù trực giác thấy có dữ liệu liên quan.
