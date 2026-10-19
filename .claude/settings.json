@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "Bash(./.venv/Scripts/python.exe -c ' *)",
+      "Bash(taskkill //F //PID 20036)",
+      "Bash(PYTHONIOENCODING=utf-8 ./.venv/Scripts/python.exe \"C:\\\\Users\\\\DUC~1.LE-\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\f--code-folder-2026-riskmap-holding\\\\ea398320-b147-42bf-984b-5993ada54c8f\\\\scratchpad\\\\pw_test_no_sheet1_risk.py\")"
+    ]
+  }
+}
